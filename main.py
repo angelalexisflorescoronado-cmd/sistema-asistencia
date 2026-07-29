@@ -9,7 +9,7 @@ DB_NAME = "asistencia.db"
 
 
 # ----------------------------------------------------------------------
-# INICIALIZACIÓN DE BASE DE DATOS (CORREGIDA SIN ERRORES DE SCHEMA)
+# INICIALIZACIÓN DE BASE DE DATOS (MIGRACIÓN SEGURA)
 # ----------------------------------------------------------------------
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -26,18 +26,56 @@ def init_db():
         )
     """)
 
-    # 2. Agregar columna nomina si la tabla fue creada previamente sin ella
+    # 2. Agregar columna nomina si la tabla existía previamente sin ella
     try:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN nomina TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
 
-    # 3. Crear índice UNIQUE para nómina si no existe
+    # 3. Lista completa de usuarios extraída de la nómina
+    usuarios_base = [
+        ("10031976", "JIMENEZ, LUIS RAUL", "OPERADOR", "1234"),
+        ("10015510", "PEREZ, RAYMUNDO", "OPERADOR", "1234"),
+        ("10016085", "SALVADOR, ERNESTO", "OPERADOR", "1234"),
+        ("10019675", "RIVERA, RIGOBERTO", "OPERADOR", "1234"),
+        ("10139954", "OSCAR GARCIA HERNANDEZ", "OPERADOR", "1234"),
+        ("10007219", "LUIS ANGEL PEREZ", "OPERADOR", "1234"),
+        ("10018255", "SERNA, ORLANDO", "OPERADOR", "1234"),
+        ("10005881", "SANTOS GUTIERREZ", "OPERADOR", "1234"),
+        ("10019578", "LOREDO, JESUS", "OPERADOR", "1234"),
+        ("10022967", "SANTIAGO, RICARDO", "OPERADOR", "1234"),
+        ("10005894", "ZARAGOZA, GILBERTO", "OPERADOR", "1234"),
+        ("10092630", "JUAN CARLOS", "OPERADOR", "1234"),
+        ("10076145", "HERNANDEZ, OSCAR", "OPERADOR", "1234"),
+        ("10004365", "BENITO, OSCAR", "OPERADOR", "1234"),
+        ("10023526", "MARIA DOREYDA PEREZ", "OPERADOR", "1234"),
+        ("10019258", "ANTONIO, ROBERTO", "OPERADOR", "1234"),
+        ("10015453", "PORTILLO, JOSE JUAN", "OPERADOR", "1234"),
+        ("10035253", "ANGEL FLORES", "ADMIN_USUARIOS", "1234"),
+        ("10003693", "ALEJANDRO GUARDA", "ADMIN_ROL", "1234"),
+        ("10215435", "DONATO BACCO", "ADMIN_ROL", "1234"),
+    ]
+
+    # Actualizar primero las nóminas vinculadas a cada nombre
+    for nom, nombre, rol, pwd in usuarios_base:
+        cursor.execute(
+            """
+            INSERT INTO usuarios (nomina, nombre, rol, password) 
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(nombre) DO UPDATE SET 
+                nomina=excluded.nomina,
+                rol=excluded.rol
+        """,
+            (nom, nombre, rol, pwd),
+        )
+
+    # 4. Intentar crear el índice único de nómina capturando cualquier conflicto previo
     try:
         cursor.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_nomina ON usuarios(nomina)"
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_nomina ON"
+            " usuarios(nomina)"
         )
-    except sqlite3.OperationalError:
+    except (sqlite3.OperationalError, sqlite3.IntegrityError):
         pass
 
     cursor.execute("""
@@ -77,42 +115,6 @@ def init_db():
             )
         except sqlite3.OperationalError:
             pass
-
-    # Lista completa de usuarios extraída de la nómina
-    usuarios_base = [
-        ("10031976", "JIMENEZ, LUIS RAUL", "OPERADOR", "1234"),
-        ("10015510", "PEREZ, RAYMUNDO", "OPERADOR", "1234"),
-        ("10016085", "SALVADOR, ERNESTO", "OPERADOR", "1234"),
-        ("10019675", "RIVERA, RIGOBERTO", "OPERADOR", "1234"),
-        ("10139954", "OSCAR GARCIA HERNANDEZ", "OPERADOR", "1234"),
-        ("10007219", "LUIS ANGEL PEREZ", "OPERADOR", "1234"),
-        ("10018255", "SERNA, ORLANDO", "OPERADOR", "1234"),
-        ("10005881", "SANTOS GUTIERREZ", "OPERADOR", "1234"),
-        ("10019578", "LOREDO, JESUS", "OPERADOR", "1234"),
-        ("10022967", "SANTIAGO, RICARDO", "OPERADOR", "1234"),
-        ("10005894", "ZARAGOZA, GILBERTO", "OPERADOR", "1234"),
-        ("10092630", "JUAN CARLOS", "OPERADOR", "1234"),
-        ("10076145", "HERNANDEZ, OSCAR", "OPERADOR", "1234"),
-        ("10004365", "BENITO, OSCAR", "OPERADOR", "1234"),
-        ("10023526", "MARIA DOREYDA PEREZ", "OPERADOR", "1234"),
-        ("10019258", "ANTONIO, ROBERTO", "OPERADOR", "1234"),
-        ("10015453", "PORTILLO, JOSE JUAN", "OPERADOR", "1234"),
-        ("10035253", "ANGEL FLORES", "ADMIN_USUARIOS", "1234"),
-        ("10003693", "ALEJANDRO GUARDA", "ADMIN_ROL", "1234"),
-        ("10215435", "DONATO BACCO", "ADMIN_ROL", "1234"),
-    ]
-
-    for nom, nombre, rol, pwd in usuarios_base:
-        cursor.execute(
-            """
-            INSERT INTO usuarios (nomina, nombre, rol, password) 
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(nombre) DO UPDATE SET 
-                nomina=excluded.nomina,
-                rol=excluded.rol
-        """,
-            (nom, nombre, rol, pwd),
-        )
 
     conn.commit()
     conn.close()
