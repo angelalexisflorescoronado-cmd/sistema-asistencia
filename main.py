@@ -1074,27 +1074,47 @@ else:
                 if st.button("💾 Guardar Cambios en Usuarios", type="primary"):
                     conn = sqlite3.connect(DB_NAME)
                     cursor = conn.cursor()
+                    errores = []
 
                     for idx, row in df_u_editado.iterrows():
-                        cursor.execute(
-                            """
-                            UPDATE usuarios 
-                            SET nomina = ?, nombre = ?, rol = ?, password = ? 
-                            WHERE id = ?
-                        """,
-                            (
-                                str(row["nomina"]).strip(),
-                                str(row["nombre"]).strip().upper(),
-                                row["rol"],
-                                str(row["password"]),
-                                row["id"],
-                            ),
-                        )
+                        try:
+                            cursor.execute(
+                                """
+                                UPDATE usuarios 
+                                SET nomina = ?, nombre = ?, rol = ?, password = ? 
+                                WHERE id = ?
+                            """,
+                                (
+                                    str(row["nomina"]).strip(),
+                                    str(row["nombre"]).strip().upper(),
+                                    row["rol"],
+                                    str(row["password"]),
+                                    row["id"],
+                                ),
+                            )
+                        except sqlite3.IntegrityError:
+                            errores.append(
+                                f"No se pudo actualizar a '{row['nombre']}': La"
+                                f" nómina '{row['nomina']}' o el nombre coincide"
+                                " con otro registro existente."
+                            )
 
                     conn.commit()
                     conn.close()
-                    st.success("¡Datos de usuarios actualizados correctamente!")
-                    st.rerun()
+
+                    if errores:
+                        for err in errores:
+                            st.error(err)
+                        st.warning(
+                            "Los demás usuarios sin conflicto sí se actualizaron"
+                            " correctamente."
+                        )
+                    else:
+                        st.success(
+                            "¡Datos y contraseñas de usuarios actualizados"
+                            " correctamente!"
+                        )
+                        st.rerun()
 
                 st.markdown("---")
                 col_du1, col_du2 = st.columns([1, 2])
