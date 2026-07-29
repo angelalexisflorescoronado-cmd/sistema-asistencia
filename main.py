@@ -14,14 +14,24 @@ DB_NAME = "asistencia.db"
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
+
+    # Creación/Actualización de tabla usuarios con columna nomina
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT UNIQUE NOT NULL,
+            nomina TEXT UNIQUE NOT NULL,
+            nombre TEXT NOT NULL,
             rol TEXT NOT NULL DEFAULT 'OPERADOR',
             password TEXT NOT NULL DEFAULT '1234'
         )
     """)
+
+    # Asegurar que la columna nomina exista si la DB ya estaba creada
+    try:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN nomina TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS rol_asistencia (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,6 +43,7 @@ def init_db():
             UNIQUE(nombre, fecha)
         )
     """)
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS solicitudes_vacaciones (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,19 +70,42 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
+    # Lista completa de usuarios extraída de la nómina
     usuarios_base = [
-        ("JIMENEZ, LUIS RAUL", "OPERADOR", "1234"),
-        ("PEREZ, RAYMUNDO", "OPERADOR", "1234"),
-        ("ANGEL FLORES", "ADMIN_USUARIOS", "1234"),
-        ("ALEJANDRO GUARDA", "ADMIN_ROL", "1234"),
-        ("DONATO BACCO", "ADMIN_ROL", "1234"),
+        ("10031976", "JIMENEZ, LUIS RAUL", "OPERADOR", "1234"),
+        ("10015510", "PEREZ, RAYMUNDO", "OPERADOR", "1234"),
+        ("10016085", "SALVADOR, ERNESTO", "OPERADOR", "1234"),
+        ("10019675", "RIVERA, RIGOBERTO", "OPERADOR", "1234"),
+        ("10139954", "OSCAR GARCIA HERNANDEZ", "OPERADOR", "1234"),
+        ("10007219", "LUIS ANGEL PEREZ", "OPERADOR", "1234"),
+        ("10018255", "SERNA, ORLANDO", "OPERADOR", "1234"),
+        ("10005881", "SANTOS GUTIERREZ", "OPERADOR", "1234"),
+        ("10019578", "LOREDO, JESUS", "OPERADOR", "1234"),
+        ("10022967", "SANTIAGO, RICARDO", "OPERADOR", "1234"),
+        ("10005894", "ZARAGOZA, GILBERTO", "OPERADOR", "1234"),
+        ("10092630", "JUAN CARLOS", "OPERADOR", "1234"),
+        ("10076145", "HERNANDEZ, OSCAR", "OPERADOR", "1234"),
+        ("10004365", "BENITO, OSCAR", "OPERADOR", "1234"),
+        ("10023526", "MARIA DOREYDA PEREZ", "OPERADOR", "1234"),
+        ("10019258", "ANTONIO, ROBERTO", "OPERADOR", "1234"),
+        ("10015453", "PORTILLO, JOSE JUAN", "OPERADOR", "1234"),
+        ("10035253", "ANGEL FLORES", "ADMIN_USUARIOS", "1234"),
+        ("10003693", "ALEJANDRO GUARDA", "ADMIN_ROL", "1234"),
+        ("10215435", "DONATO BACCO", "ADMIN_ROL", "1234"),
     ]
-    for nom, rol, pwd in usuarios_base:
+
+    for nom, nombre, rol, pwd in usuarios_base:
         cursor.execute(
-            "INSERT OR IGNORE INTO usuarios (nombre, rol, password) VALUES (?,"
-            " ?, ?)",
-            (nom, rol, pwd),
+            """
+            INSERT INTO usuarios (nomina, nombre, rol, password) 
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(nomina) DO UPDATE SET 
+                nombre=excluded.nombre, 
+                rol=excluded.rol
+        """,
+            (nom, nombre, rol, pwd),
         )
+
     conn.commit()
     conn.close()
 
@@ -87,6 +121,8 @@ st.set_page_config(
 
 if "usuario" not in st.session_state:
     st.session_state.usuario = None
+if "nomina" not in st.session_state:
+    st.session_state.nomina = None
 if "rol" not in st.session_state:
     st.session_state.rol = None
 if "fecha_ref" not in st.session_state:
@@ -99,34 +135,30 @@ if not st.session_state.usuario:
     st.title("📱 Control de Asistencia y Vacaciones")
     st.subheader("Inicio de Sesión")
 
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT nombre FROM usuarios ORDER BY nombre ASC")
-    lista_usuarios = [r[0] for r in cursor.fetchall()]
-    conn.close()
-
-    usuario_sel = st.selectbox("Selecciona tu Usuario:", [""] + lista_usuarios)
+    nomina_input = st.text_input("Número de Nómina:").strip()
     password_sel = st.text_input("Contraseña:", type="password")
 
     if st.button("Ingresar", type="primary", use_container_width=True):
-        if usuario_sel and password_sel:
+        if nomina_input and password_sel:
             conn = sqlite3.connect(DB_NAME)
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT rol FROM usuarios WHERE nombre = ? AND password = ?",
-                (usuario_sel, password_sel),
+                "SELECT nombre, rol, nomina FROM usuarios WHERE nomina = ? AND"
+                " password = ?",
+                (nomina_input, password_sel),
             )
             row = cursor.fetchone()
             conn.close()
 
             if row:
-                st.session_state.usuario = usuario_sel
-                st.session_state.rol = row[0]
+                st.session_state.usuario = row[0]
+                st.session_state.rol = row[1]
+                st.session_state.nomina = row[2]
                 st.rerun()
             else:
-                st.error("Contraseña incorrecta")
+                st.error("Número de nómina o contraseña incorrectos.")
         else:
-            st.warning("Selecciona un usuario e ingresa tu contraseña.")
+            st.warning("Ingresa tu número de nómina y contraseña.")
 
 # ----------------------------------------------------------------------
 # INTERFAZ PRINCIPAL DENTRO DE SESIÓN
@@ -134,10 +166,14 @@ if not st.session_state.usuario:
 else:
     with st.sidebar:
         st.write(f"👤 **{st.session_state.usuario}**")
+        st.write(f"🆔 Nómina: `{st.session_state.nomina}`")
         st.write(f"🔰 Rol: `{st.session_state.rol}`")
         if st.button("Cerrar Sesión", use_container_width=True):
             st.session_state.usuario = None
+            st.session_state.nomina = None
             st.session_state.rol = None
+            if "msg_exito" in st.session_state:
+                del st.session_state["msg_exito"]
             st.rerun()
 
     st.title("📅 Sistema de Asistencia")
@@ -420,10 +456,16 @@ else:
                 conn.commit()
                 conn.close()
 
-                st.success("¡Solicitud enviada correctamente!")
+                st.session_state.msg_exito = (
+                    f"✅ ¡Solicitud enviada correctamente para las fechas:"
+                    f" {fechas_str}!"
+                )
                 st.rerun()
             else:
                 st.warning("Selecciona las fechas en el calendario.")
+
+        if "msg_exito" in st.session_state and st.session_state.msg_exito:
+            st.success(st.session_state.msg_exito)
 
     idx_notif = (
         2 if st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"] else -1
@@ -796,8 +838,7 @@ else:
                 "Cálculo automático basado en el Rol de Asistencia: Se"
                 " consideran como **Tiempo Extra** todos los días laborados"
                 " (`DIA` o `NOCHE`) que excedan los **4 días estándar** por"
-                " semana (incluyendo aquellos días programados originalmente"
-                " con vacaciones `V` pero trabajados)."
+                " semana."
             )
 
             col_te1, col_te2 = st.columns(2)
@@ -943,58 +984,59 @@ else:
             st.markdown("---")
             st.subheader("⚙️ ADMINISTRACIÓN GENERAL DE USUARIOS")
             st.info(
-                "Módulo exclusivo de administración. Puedes dar de alta,"
-                " modificar rol/contraseña o eliminar cuentas de acceso al"
-                " sistema."
+                "Módulo exclusivo de administración. Puedes registrar nuevos"
+                " empleados asignando su nómina, modificar datos o eliminar"
+                " accesos."
             )
 
             st.markdown("### ➕ Registrar Nuevo Usuario")
-            col_u1, col_u2, col_u3 = st.columns(3)
+            col_u1, col_u2, col_u3, col_u4 = st.columns(4)
             with col_u1:
-                nuevo_nombre = st.text_input("Nombre Completo:").strip().upper()
+                nueva_nomina = st.text_input("Nómina:").strip()
             with col_u2:
+                nuevo_nombre = st.text_input("Nombre Completo:").strip().upper()
+            with col_u3:
                 nuevo_rol = st.selectbox(
                     "Rol asignado:",
                     ["OPERADOR", "ADMIN_ROL", "ADMIN_USUARIOS"],
                 )
-            with col_u3:
+            with col_u4:
                 nueva_pass = st.text_input(
                     "Contraseña inicial:", value="1234", type="password"
                 )
 
             if st.button("👥 Agregar Usuario", type="primary"):
-                if nuevo_nombre and nueva_pass:
+                if nueva_nomina and nuevo_nombre and nueva_pass:
                     conn = sqlite3.connect(DB_NAME)
                     cursor = conn.cursor()
                     try:
                         cursor.execute(
-                            "INSERT INTO usuarios (nombre, rol, password)"
-                            " VALUES (?, ?, ?)",
-                            (nuevo_nombre, nuevo_rol, nueva_pass),
+                            """
+                            INSERT INTO usuarios (nomina, nombre, rol, password) 
+                            VALUES (?, ?, ?, ?)
+                        """,
+                            (nueva_nomina, nuevo_nombre, nuevo_rol, nueva_pass),
                         )
                         conn.commit()
                         st.success(
-                            f"¡Usuario **{nuevo_nombre}** registrado con"
-                            " éxito!"
+                            f"¡Usuario **{nuevo_nombre}** (Nómina: {nueva_nomina}) registrado con éxito!"
                         )
                         st.rerun()
                     except sqlite3.IntegrityError:
                         st.error(
-                            f"El usuario **{nuevo_nombre}** ya se encuentra"
-                            " registrado."
+                            f"La nómina **{nueva_nomina}** ya se encuentra registrada."
                         )
                     finally:
                         conn.close()
                 else:
-                    st.warning("Completa el nombre y la contraseña.")
+                    st.warning("Completa la nómina, el nombre y la contraseña.")
 
             st.markdown("---")
             st.markdown("### ✏️ Modificar o Eliminar Usuarios Existentes")
 
             conn = sqlite3.connect(DB_NAME)
             df_usuarios = pd.read_sql(
-                "SELECT id, nombre, rol, password FROM usuarios ORDER BY nombre"
-                " ASC",
+                "SELECT id, nomina, nombre, rol, password FROM usuarios ORDER BY nombre ASC",
                 conn,
             )
             conn.close()
@@ -1006,6 +1048,7 @@ else:
                         "id": st.column_config.NumberColumn(
                             "ID", disabled=True
                         ),
+                        "nomina": st.column_config.TextColumn("Nómina"),
                         "nombre": st.column_config.TextColumn("Nombre"),
                         "rol": st.column_config.SelectboxColumn(
                             "Rol",
@@ -1026,11 +1069,12 @@ else:
                         cursor.execute(
                             """
                             UPDATE usuarios 
-                            SET nombre = ?, rol = ?, password = ? 
+                            SET nomina = ?, nombre = ?, rol = ?, password = ? 
                             WHERE id = ?
                         """,
                             (
-                                row["nombre"].strip().upper(),
+                                str(row["nomina"]).strip(),
+                                str(row["nombre"]).strip().upper(),
                                 row["rol"],
                                 str(row["password"]),
                                 row["id"],
