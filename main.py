@@ -1029,24 +1029,34 @@ else:
                         )
                         conn.commit()
                         st.success(
-                            f"¡Usuario **{nuevo_nombre}** (Nómina: {nueva_nomina}) registrado con éxito!"
+                            f"¡Usuario **{nuevo_nombre}** (Nómina:"
+                            f" {nueva_nomina}) registrado con éxito!"
                         )
                         st.rerun()
                     except sqlite3.IntegrityError:
                         st.error(
-                            f"El usuario o la nómina **{nueva_nomina}** ya existe en el sistema."
+                            f"El usuario o la nómina **{nueva_nomina}** ya"
+                            " existe en el sistema."
                         )
                     finally:
                         conn.close()
                 else:
-                    st.warning("Completa la nómina, el nombre y la contraseña.")
+                    st.warning(
+                        "Completa la nómina, el nombre y la contraseña."
+                    )
 
             st.markdown("---")
             st.markdown("### ✏️ Modificar o Eliminar Usuarios Existentes")
+            st.caption(
+                "💡 **Para eliminar usuarios desde la tabla:** Selecciónalos"
+                " con la casilla izquierda y presiona `Supr / Delete`, o usa el"
+                " icono de basura. Luego haz clic en **Guardar Cambios**."
+            )
 
             conn = sqlite3.connect(DB_NAME)
             df_usuarios = pd.read_sql(
-                "SELECT id, nomina, nombre, rol, password FROM usuarios ORDER BY nombre ASC",
+                "SELECT id, nomina, nombre, rol, password FROM usuarios ORDER"
+                " BY nombre ASC",
                 conn,
             )
             conn.close()
@@ -1066,6 +1076,7 @@ else:
                         ),
                         "password": st.column_config.TextColumn("Contraseña"),
                     },
+                    num_rows="dynamic",
                     use_container_width=True,
                     hide_index=True,
                     key="editor_usuarios_app",
@@ -1076,28 +1087,49 @@ else:
                     cursor = conn.cursor()
                     errores = []
 
-                    for idx, row in df_u_editado.iterrows():
-                        try:
+                    # Detectar filas eliminadas directamente de la tabla
+                    ids_originales = set(df_usuarios["id"])
+                    ids_actuales = set(df_u_editado["id"].dropna().astype(int))
+                    ids_eliminados = ids_originales - ids_actuales
+
+                    for id_del in ids_eliminados:
+                        nombre_del = df_usuarios.loc[
+                            df_usuarios["id"] == id_del, "nombre"
+                        ].values[0]
+                        if "ANGEL" in str(nombre_del).upper():
+                            st.error(
+                                "No es posible eliminar la cuenta principal de"
+                                " administración."
+                            )
+                        else:
                             cursor.execute(
-                                """
-                                UPDATE usuarios 
-                                SET nomina = ?, nombre = ?, rol = ?, password = ? 
-                                WHERE id = ?
-                            """,
-                                (
-                                    str(row["nomina"]).strip(),
-                                    str(row["nombre"]).strip().upper(),
-                                    row["rol"],
-                                    str(row["password"]),
-                                    row["id"],
-                                ),
+                                "DELETE FROM usuarios WHERE id = ?", (id_del,)
                             )
-                        except sqlite3.IntegrityError:
-                            errores.append(
-                                f"No se pudo actualizar a '{row['nombre']}': La"
-                                f" nómina '{row['nomina']}' o el nombre coincide"
-                                " con otro registro existente."
-                            )
+
+                    # Actualizar usuarios
+                    for idx, row in df_u_editado.iterrows():
+                        if pd.notna(row["id"]):
+                            try:
+                                cursor.execute(
+                                    """
+                                    UPDATE usuarios 
+                                    SET nomina = ?, nombre = ?, rol = ?, password = ? 
+                                    WHERE id = ?
+                                """,
+                                    (
+                                        str(row["nomina"]).strip(),
+                                        str(row["nombre"]).strip().upper(),
+                                        row["rol"],
+                                        str(row["password"]),
+                                        int(row["id"]),
+                                    ),
+                                )
+                            except sqlite3.IntegrityError:
+                                errores.append(
+                                    f"No se pudo actualizar a '{row['nombre']}':"
+                                    f" La nómina '{row['nomina']}' o el nombre"
+                                    " coincide con otro registro existente."
+                                )
 
                     conn.commit()
                     conn.close()
@@ -1105,32 +1137,30 @@ else:
                     if errores:
                         for err in errores:
                             st.error(err)
-                        st.warning(
-                            "Los demás usuarios sin conflicto sí se actualizaron"
-                            " correctamente."
-                        )
+                        st.warning("Los demás cambios sí se aplicaron.")
                     else:
                         st.success(
-                            "¡Datos y contraseñas de usuarios actualizados"
-                            " correctamente!"
+                            "¡Tabla de usuarios actualizada correctamente!"
                         )
                         st.rerun()
 
                 st.markdown("---")
+                # Botón de eliminación rápida por desplegable
+                st.markdown("### 🗑️ Eliminar Usuario Rápidamente")
                 col_du1, col_du2 = st.columns([1, 2])
                 with col_du1:
                     u_a_eliminar = st.selectbox(
-                        "Selecciona usuario a eliminar:",
+                        "Selecciona el usuario que deseas borrar:",
                         df_usuarios["nombre"].tolist(),
-                        key="sel_del_user",
+                        key="sel_del_user_fast",
                     )
                 with col_du2:
                     st.write("")
                     st.write("")
                     if st.button(
-                        f"❌ Eliminar Usuario {u_a_eliminar}", type="secondary"
+                        f"❌ Eliminar a {u_a_eliminar}", type="secondary"
                     ):
-                        if u_a_eliminar.strip().upper() == "ANGEL FLORES":
+                        if "ANGEL" in u_a_eliminar.strip().upper():
                             st.error(
                                 "No es posible eliminar la cuenta principal de"
                                 " administración."
@@ -1145,6 +1175,7 @@ else:
                             conn.commit()
                             conn.close()
                             st.success(
-                                f"¡El usuario {u_a_eliminar} ha sido eliminado!"
+                                f"¡El usuario {u_a_eliminar} fue eliminado con"
+                                " éxito!"
                             )
                             st.rerun()
