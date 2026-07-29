@@ -1,34 +1,42 @@
 from datetime import datetime
 import datetime as dt
+import sqlite3
 import pandas as pd
 import plotly.express as px
-import sqlite3
 import streamlit as st
 
 DB_NAME = "asistencia.db"
 
 
 # ----------------------------------------------------------------------
-# INICIALIZACIÓN DE BASE DE DATOS
+# INICIALIZACIÓN DE BASE DE DATOS (CORREGIDA SIN ERRORES DE SCHEMA)
 # ----------------------------------------------------------------------
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
-    # Creación/Actualización de tabla usuarios con columna nomina
+    # 1. Crear tabla usuarios si no existe
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nomina TEXT UNIQUE NOT NULL,
-            nombre TEXT NOT NULL,
+            nomina TEXT DEFAULT '',
+            nombre TEXT UNIQUE NOT NULL,
             rol TEXT NOT NULL DEFAULT 'OPERADOR',
             password TEXT NOT NULL DEFAULT '1234'
         )
     """)
 
-    # Asegurar que la columna nomina exista si la DB ya estaba creada
+    # 2. Agregar columna nomina si la tabla fue creada previamente sin ella
     try:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN nomina TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+
+    # 3. Crear índice UNIQUE para nómina si no existe
+    try:
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_nomina ON usuarios(nomina)"
+        )
     except sqlite3.OperationalError:
         pass
 
@@ -99,8 +107,8 @@ def init_db():
             """
             INSERT INTO usuarios (nomina, nombre, rol, password) 
             VALUES (?, ?, ?, ?)
-            ON CONFLICT(nomina) DO UPDATE SET 
-                nombre=excluded.nombre, 
+            ON CONFLICT(nombre) DO UPDATE SET 
+                nomina=excluded.nomina,
                 rol=excluded.rol
         """,
             (nom, nombre, rol, pwd),
@@ -1024,7 +1032,7 @@ else:
                         st.rerun()
                     except sqlite3.IntegrityError:
                         st.error(
-                            f"La nómina **{nueva_nomina}** ya se encuentra registrada."
+                            f"El usuario o la nómina **{nueva_nomina}** ya existe en el sistema."
                         )
                     finally:
                         conn.close()
