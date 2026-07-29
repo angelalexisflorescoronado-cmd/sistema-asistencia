@@ -2,8 +2,8 @@ from datetime import datetime
 import datetime as dt
 import pandas as pd
 import plotly.express as px
-import streamlit as st
 import sqlite3
+import streamlit as st
 
 DB_NAME = "asistencia.db"
 
@@ -53,7 +53,9 @@ def init_db():
         "hora_autorizacion TEXT DEFAULT ''",
     ]:
         try:
-            cursor.execute(f"ALTER TABLE solicitudes_vacaciones ADD COLUMN {col}")
+            cursor.execute(
+                f"ALTER TABLE solicitudes_vacaciones ADD COLUMN {col}"
+            )
         except sqlite3.OperationalError:
             pass
 
@@ -66,7 +68,8 @@ def init_db():
     ]
     for nom, rol, pwd in usuarios_base:
         cursor.execute(
-            "INSERT OR IGNORE INTO usuarios (nombre, rol, password) VALUES (?, ?, ?)",
+            "INSERT OR IGNORE INTO usuarios (nombre, rol, password) VALUES (?,"
+            " ?, ?)",
             (nom, rol, pwd),
         )
     conn.commit()
@@ -264,7 +267,8 @@ else:
         empleados = [r[0] for r in cursor.fetchall()]
 
         dias_fechas = [
-            (lunes + dt.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)
+            (lunes + dt.timedelta(days=i)).strftime("%Y-%m-%d")
+            for i in range(7)
         ]
         nombres_dias = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
         encabezados = ["Empleado"] + [
@@ -277,8 +281,8 @@ else:
             fila = [emp]
             for f_str in dias_fechas:
                 cursor.execute(
-                    "SELECT turno FROM rol_asistencia WHERE (nombre=? OR empleado=?) AND"
-                    " fecha=?",
+                    "SELECT turno FROM rol_asistencia WHERE (nombre=? OR"
+                    " empleado=?) AND fecha=?",
                     (emp, emp, f_str),
                 )
                 res = cursor.fetchone()
@@ -296,7 +300,10 @@ else:
         }
         for col in encabezados[1:]:
             config_columnas[col] = st.column_config.SelectboxColumn(
-                col, options=opciones_turnos, required=True, disabled=not es_admin
+                col,
+                options=opciones_turnos,
+                required=True,
+                disabled=not es_admin,
             )
 
         df_editado = st.data_editor(
@@ -374,12 +381,20 @@ else:
 
             for otro_sol, o_fechas, o_fecha_sol in otras_solicitudes:
                 if o_fecha_sol <= hoy_str:
-                    dias_otro = [d.strip() for d in o_fechas.split(",") if d.strip()]
-                    dias_coincidentes = [d for d in dias_actuales if d in dias_otro]
+                    dias_otro = [
+                        d.strip() for d in o_fechas.split(",") if d.strip()
+                    ]
+                    dias_coincidentes = [
+                        d for d in dias_actuales if d in dias_otro
+                    ]
 
                     if dias_coincidentes:
                         fechas_str_emp = ", ".join(dias_coincidentes)
-                        alerta_msg = f"⚠️ ALERTA DE EMPALME CON {otro_sol} SOLICITO EL DIA {fechas_str_emp} SE TEDRA QUE REVISAR EN CONJUNTO PARA VER LA NECESIDAD."
+                        alerta_msg = (
+                            f"⚠️ ALERTA DE EMPALME CON {otro_sol} SOLICITO EL"
+                            f" DIA {fechas_str_emp} SE TEDRA QUE REVISAR EN"
+                            " CONJUNTO PARA VER LA NECESIDAD."
+                        )
                         alertas_empalme_usuario.append(alerta_msg)
 
         if alertas_empalme_usuario:
@@ -389,7 +404,9 @@ else:
                     unsafe_allow_html=True,
                 )
 
-        if st.button("Enviar Solicitud", type="primary", use_container_width=True):
+        if st.button(
+            "Enviar Solicitud", type="primary", use_container_width=True
+        ):
             if fechas_str:
                 conn = sqlite3.connect(DB_NAME)
                 cursor = conn.cursor()
@@ -408,7 +425,9 @@ else:
             else:
                 st.warning("Selecciona las fechas en el calendario.")
 
-    idx_notif = 2 if st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"] else -1
+    idx_notif = (
+        2 if st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"] else -1
+    )
 
     # --- PESTAÑA 3: NOTIFICACIONES ---
     if st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]:
@@ -429,13 +448,16 @@ else:
             else:
                 for sol_id, sol, fechas, f_sol in pendientes:
                     with st.expander(
-                        f"📌 Solicitud de {sol} (Enviada: {f_sol})", expanded=True
+                        f"📌 Solicitud de {sol} (Enviada: {f_sol})",
+                        expanded=True,
                     ):
                         st.write(f"**Fechas solicitadas:** `{fechas}`")
 
                         conn = sqlite3.connect(DB_NAME)
                         cursor = conn.cursor()
-                        dias_lista = [d.strip() for d in fechas.split(",") if d.strip()]
+                        dias_lista = [
+                            d.strip() for d in fechas.split(",") if d.strip()
+                        ]
                         alertas_empalme = []
 
                         cursor.execute(
@@ -447,16 +469,31 @@ else:
                         )
                         otras_solicitudes = cursor.fetchall()
 
-                        for otro_sol, o_fechas, o_fecha_sol in otras_solicitudes:
+                        for (
+                            otro_sol,
+                            o_fechas,
+                            o_fecha_sol,
+                        ) in otras_solicitudes:
                             if o_fecha_sol <= f_sol:
                                 dias_otro = [
-                                    d.strip() for d in o_fechas.split(",") if d.strip()
+                                    d.strip()
+                                    for d in o_fechas.split(",")
+                                    if d.strip()
                                 ]
-                                dias_coincidentes = [d for d in dias_lista if d in dias_otro]
+                                dias_coincidentes = [
+                                    d for d in dias_lista if d in dias_otro
+                                ]
 
                                 if dias_coincidentes:
-                                    fechas_str_emp = ", ".join(dias_coincidentes)
-                                    alerta_texto = f"⚠️ ALERTA DE EMPALME CON {otro_sol} SOLICITO EL DIA {fechas_str_emp} SE TEDRA QUE REVISAR EN CONJUNTO PARA VER LA NECESIDAD."
+                                    fechas_str_emp = ", ".join(
+                                        dias_coincidentes
+                                    )
+                                    alerta_texto = (
+                                        f"⚠️ ALERTA DE EMPALME CON {otro_sol}"
+                                        f" SOLICITO EL DIA {fechas_str_emp} SE"
+                                        " TEDRA QUE REVISAR EN CONJUNTO PARA"
+                                        " VER LA NECESIDAD."
+                                    )
                                     alertas_empalme.append(alerta_texto)
 
                         conn.close()
@@ -472,15 +509,20 @@ else:
                             )
 
                         st.markdown(
-                            "**Dictamen individual por día (Aprobar / Rechazar):**"
+                            "**Dictamen individual por día (Aprobar /"
+                            " Rechazar):**"
                         )
                         decisiones_dias = {}
-                        cols_dias = st.columns(min(len(dias_lista), 4) if dias_lista else 1)
+                        cols_dias = st.columns(
+                            min(len(dias_lista), 4) if dias_lista else 1
+                        )
 
                         for idx_d, dia in enumerate(dias_lista):
                             with cols_dias[idx_d % len(cols_dias)]:
                                 decisiones_dias[dia] = st.selectbox(
-                                    f"{dia}", ["Aprobar", "Rechazar"], key=f"dec_{sol_id}_{dia}"
+                                    f"{dia}",
+                                    ["Aprobar", "Rechazar"],
+                                    key=f"dec_{sol_id}_{dia}",
                                 )
 
                         st.write("")
@@ -501,7 +543,9 @@ else:
                                 if dec == "Aprobar"
                             ]
                             dias_rechazados = [
-                                d for d, dec in decisiones_dias.items() if dec == "Rechazar"
+                                d
+                                for d, dec in decisiones_dias.items()
+                                if dec == "Rechazar"
                             ]
 
                             for dia in dias_aprobados:
@@ -539,13 +583,20 @@ else:
                                     hora_autorizacion = ? 
                                 WHERE id = ?
                             """,
-                                (estado_general, st.session_state.usuario, f_act, h_act, sol_id),
+                                (
+                                    estado_general,
+                                    st.session_state.usuario,
+                                    f_act,
+                                    h_act,
+                                    sol_id,
+                                ),
                             )
 
                             conn.commit()
                             conn.close()
                             st.success(
-                                f"¡Dictamen aplicado correctamente para la solicitud #{sol_id}!"
+                                "¡Dictamen aplicado correctamente para la"
+                                f" solicitud #{sol_id}!"
                             )
                             st.rerun()
 
@@ -558,13 +609,14 @@ else:
 
             if es_angel:
                 st.info(
-                    "Panel exclusivo de **Angel Flores**. Modifica estatus, utiliza los"
-                    " filtros de búsqueda o elimina registros permanentemente."
+                    "Panel exclusivo de **Angel Flores**. Modifica estatus,"
+                    " utiliza los filtros de búsqueda o elimina registros"
+                    " permanentemente."
                 )
             else:
                 st.info(
-                    f"Panel de supervisión para **{st.session_state.usuario}**. Puedes"
-                    " visualizar y filtrar el historial de dictámenes."
+                    f"Panel de supervisión para **{st.session_state.usuario}**."
+                    " Puedes visualizar y filtrar el historial de dictámenes."
                 )
 
             col_f1, col_f2 = st.columns(2)
@@ -591,14 +643,18 @@ else:
             if not df_hist.empty:
                 if filtro_texto:
                     df_hist = df_hist[
-                        df_hist["solicitante"].str.upper().str.contains(filtro_texto)
+                        df_hist["solicitante"]
+                        .str.upper()
+                        .str.contains(filtro_texto)
                         | df_hist["fechas"].str.upper().str.contains(filtro_texto)
                     ]
                 if filtro_estado != "TODOS":
                     df_hist = df_hist[df_hist["estado"] == filtro_estado]
 
             if df_hist.empty:
-                st.warning("No se encontraron registros con los filtros aplicados.")
+                st.warning(
+                    "No se encontraron registros con los filtros aplicados."
+                )
             else:
                 if es_angel:
                     df_editado = st.data_editor(
@@ -618,7 +674,8 @@ else:
                     )
 
                     if st.button(
-                        "💾 Guardar Cambios y Registrar Auditoría", type="primary"
+                        "💾 Guardar Cambios y Registrar Auditoría",
+                        type="primary",
                     ):
                         f_act = datetime.now().strftime("%Y-%m-%d")
                         h_act = datetime.now().strftime("%H:%M:%S")
@@ -651,7 +708,9 @@ else:
                             )
 
                             for dia in [
-                                d.strip() for d in fechas_reg.split(",") if d.strip()
+                                d.strip()
+                                for d in fechas_reg.split(",")
+                                if d.strip()
                             ]:
                                 if nuevo_estado == "APROBADO":
                                     cursor.execute(
@@ -660,7 +719,11 @@ else:
                                             VALUES (?, ?, ?, 'V', 'V')
                                             ON CONFLICT(nombre, fecha) DO UPDATE SET turno='V', estado='V'
                                         """,
-                                        (solicitante_reg, solicitante_reg, dia),
+                                        (
+                                            solicitante_reg,
+                                            solicitante_reg,
+                                            dia,
+                                        ),
                                     )
                                 elif nuevo_estado == "RECHAZADO":
                                     cursor.execute(
@@ -669,14 +732,18 @@ else:
                                             SET turno = '-', estado = '-' 
                                             WHERE (nombre = ? OR empleado = ?) AND fecha = ? AND turno = 'V'
                                         """,
-                                        (solicitante_reg, solicitante_reg, dia),
+                                        (
+                                            solicitante_reg,
+                                            solicitante_reg,
+                                            dia,
+                                        ),
                                     )
 
                         conn.commit()
                         conn.close()
                         st.success(
-                            "¡Historial actualizado, auditado y turnos sincronizados con"
-                            " éxito!"
+                            "¡Historial actualizado, auditado y turnos"
+                            " sincronizados con éxito!"
                         )
                         st.rerun()
 
@@ -696,24 +763,28 @@ else:
                             st.write("")
                             st.write("")
                             if st.button(
-                                f"❌ Eliminar Solicitud #{id_a_eliminar}", type="secondary"
+                                f"❌ Eliminar Solicitud #{id_a_eliminar}",
+                                type="secondary",
                             ):
                                 conn = sqlite3.connect(DB_NAME)
                                 cursor = conn.cursor()
                                 cursor.execute(
-                                    "DELETE FROM solicitudes_vacaciones WHERE id = ?",
+                                    "DELETE FROM solicitudes_vacaciones WHERE"
+                                    " id = ?",
                                     (id_a_eliminar,),
                                 )
                                 conn.commit()
                                 conn.close()
                                 st.success(
-                                    f"¡Solicitud con ID #{id_a_eliminar} eliminada"
-                                    " correctamente!"
+                                    f"¡Solicitud con ID #{id_a_eliminar}"
+                                    " eliminada correctamente!"
                                 )
                                 st.rerun()
 
                 else:
-                    st.dataframe(df_hist, use_container_width=True, hide_index=True)
+                    st.dataframe(
+                        df_hist, use_container_width=True, hide_index=True
+                    )
 
     # --- PESTAÑA 5: CONTROL DE TIEMPO EXTRA (EXCLUSIVO PARA ANGEL, ALEJANDRO Y DONATO) ---
     if es_autorizado_especial and "Control T.E." in pestanias:
@@ -722,17 +793,21 @@ else:
             st.markdown("---")
             st.subheader("⏱️ CONTROL Y ACUMULADO DE TIEMPO EXTRA (T.E.)")
             st.info(
-                "Cálculo automático basado en el Rol de Asistencia: Se consideran"
-                " como **Tiempo Extra** todos los días laborados (`DIA` o `NOCHE`)"
-                " que excedan los **4 días estándar** por semana (incluyendo aquellos"
-                " días programados originalmente con vacaciones `V` pero trabajados)."
+                "Cálculo automático basado en el Rol de Asistencia: Se"
+                " consideran como **Tiempo Extra** todos los días laborados"
+                " (`DIA` o `NOCHE`) que excedan los **4 días estándar** por"
+                " semana (incluyendo aquellos días programados originalmente"
+                " con vacaciones `V` pero trabajados)."
             )
 
             col_te1, col_te2 = st.columns(2)
             with col_te1:
                 mes_filtro_te = st.selectbox(
                     "Filtrar por modo de cálculo:",
-                    ["Semana Actual Seleccionada", "Histórico Acumulado General"],
+                    [
+                        "Semana Actual Seleccionada",
+                        "Histórico Acumulado General",
+                    ],
                 )
 
             conn = sqlite3.connect(DB_NAME)
@@ -745,7 +820,8 @@ else:
 
             if mes_filtro_te == "Semana Actual Seleccionada":
                 dias_semana_actual = [
-                    (lunes + dt.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)
+                    (lunes + dt.timedelta(days=i)).strftime("%Y-%m-%d")
+                    for i in range(7)
                 ]
 
                 conn = sqlite3.connect(DB_NAME)
@@ -754,8 +830,8 @@ else:
                     dias_trabajados = 0
                     for f_str in dias_semana_actual:
                         cursor.execute(
-                            "SELECT turno FROM rol_asistencia WHERE (nombre=? OR empleado=?)"
-                            " AND fecha=?",
+                            "SELECT turno FROM rol_asistencia WHERE (nombre=? OR"
+                            " empleado=?) AND fecha=?",
                             (emp, emp, f_str),
                         )
                         res = cursor.fetchone()
@@ -779,122 +855,222 @@ else:
                 conn = sqlite3.connect(DB_NAME)
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT DISTINCT fecha FROM rol_asistencia ORDER BY fecha ASC"
+                    "SELECT DISTINCT fecha FROM rol_asistencia ORDER BY fecha"
+                    " ASC"
                 )
-                fechas_registradas = [r[0] for r in cursor.fetchall()]
-                conn.close()
+                todas_fechas = [r[0] for r in cursor.fetchall()]
 
-                semanas_dict = {}
-                for f_s in fechas_registradas:
-                    f_dt = datetime.strptime(f_s, "%Y-%m-%d").date()
-                    l_sem = f_dt - dt.timedelta(days=f_dt.weekday())
-                    d_sem = l_sem + dt.timedelta(days=6)
-                    clave_sem = (
-                        f"{l_sem.strftime('%Y-%m-%d')} al {d_sem.strftime('%Y-%m-%d')}"
-                    )
-                    if clave_sem not in semanas_dict:
-                        semanas_dict[clave_sem] = [
-                            (l_sem + dt.timedelta(days=i)).strftime("%Y-%m-%d")
-                            for i in range(7)
-                        ]
+                semanas_agrupadas = {}
+                for f_str in todas_fechas:
+                    try:
+                        f_date = datetime.strptime(f_str, "%Y-%m-%d").date()
+                        lun_sem = f_date - dt.timedelta(days=f_date.weekday())
+                        if lun_sem not in semanas_agrupadas:
+                            semanas_agrupadas[lun_sem] = []
+                        semanas_agrupadas[lun_sem].append(f_str)
+                    except ValueError:
+                        continue
 
-                conn = sqlite3.connect(DB_NAME)
-                cursor = conn.cursor()
-                detalle_historico = []
+                for emp in todos_empleados:
+                    total_dias_te_emp = 0
+                    semanas_con_te = 0
 
-                for sem_txt, dias_s in semanas_dict.items():
-                    for emp in todos_empleados:
-                        dias_trabajados = 0
-                        for f_str in dias_s:
+                    for lun_sem, dias_list in semanas_agrupadas.items():
+                        dias_trab = 0
+                        for d_str in dias_list:
                             cursor.execute(
-                                "SELECT turno FROM rol_asistencia WHERE (nombre=? OR"
-                                " empleado=?) AND fecha=?",
-                                (emp, emp, f_str),
+                                "SELECT turno FROM rol_asistencia WHERE"
+                                " (nombre=? OR empleado=?) AND fecha=?",
+                                (emp, emp, d_str),
                             )
                             res = cursor.fetchone()
                             if res and res[0] in ["DIA", "NOCHE"]:
-                                dias_trabajados += 1
+                                dias_trab += 1
 
-                        dias_te = max(0, dias_trabajados - 4)
-                        if dias_te > 0:
-                            detalle_historico.append({
-                                "Empleado": emp,
-                                "Semana": sem_txt,
-                                "Días Trabajados": dias_trabajados,
-                                "Días de T.E.": dias_te,
-                            })
+                        ste = max(0, dias_trab - 4)
+                        if ste > 0:
+                            total_dias_te_emp += ste
+                            semanas_con_te += 1
+
+                    if total_dias_te_emp > 0:
+                        registros_te.append({
+                            "Empleado": emp,
+                            "Semanas con T.E.": semanas_con_te,
+                            "Total Días de T.E. Acumulados": total_dias_te_emp,
+                        })
                 conn.close()
-                registros_te = detalle_historico
 
             df_te = pd.DataFrame(registros_te)
 
             if df_te.empty:
-                st.warning(
-                    "No hay registros de tiempo extra (ningún colaborador supera los 4"
-                    " días laborados en el periodo)."
+                st.success(
+                    "No hay registros de Tiempo Extra generados para el período"
+                    " seleccionado."
                 )
             else:
-                st.markdown("#### 📊 Resumen de Días de Tiempo Extra")
-                st.dataframe(df_te, use_container_width=True, hide_index=True)
-
-                st.markdown("---")
-                st.markdown("#### 📈 Gráfica de Colaboradores con más Tiempo Extra")
-
-                # Gráfica corregida con Plotly Express
-                df_grafica = (
-                    df_te.groupby("Empleado")["Días de T.E."].sum().reset_index()
+                st.dataframe(
+                    df_te, use_container_width=True, hide_index=True
                 )
-                fig = px.bar(
-                    df_grafica,
-                    x="Empleado",
-                    y="Días de T.E.",
-                    text="Días de T.E.",
-                    color="Empleado",
-                    labels={"Días de T.E.": "Total Días T.E."},
-                )
-                fig.update_layout(
-                    showlegend=False, xaxis_tickangle=-30, margin=dict(t=20, b=20)
-                )
-                st.plotly_chart(fig, use_container_width=True)
 
-    # --- PESTAÑA 6: GESTIÓN DE USUARIOS (EXCLUSIVO PARA ANGEL FLORES) ---
+                if (
+                    mes_filtro_te == "Semana Actual Seleccionada"
+                    and "Días de T.E." in df_te.columns
+                ):
+                    fig = px.bar(
+                        df_te,
+                        x="Empleado",
+                        y="Días de T.E.",
+                        title="Días de Tiempo Extra por Empleado (Semana Actual)",
+                        color="Días de T.E.",
+                        color_continuous_scale="Reds",
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                elif "Total Días de T.E. Acumulados" in df_te.columns:
+                    fig = px.bar(
+                        df_te,
+                        x="Empleado",
+                        y="Total Días de T.E. Acumulados",
+                        title="Acumulado Histórico de Días T.E. por Empleado",
+                        color="Total Días de T.E. Acumulados",
+                        color_continuous_scale="Oranges",
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
+    # --- PESTAÑA 6: GESTIÓN DE USUARIOS (EXCLUSIVO PARA ANGEL) ---
     if es_angel and "Gestión Usuarios" in pestanias:
-        idx_usuarios = pestanias.index("Gestión Usuarios")
-        with tab_actual[idx_usuarios]:
-            st.subheader("Edición de Usuarios y Contraseñas")
-            conn = sqlite3.connect(DB_NAME)
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id, nombre, rol, password FROM usuarios ORDER BY nombre ASC"
-            )
-            users = cursor.fetchall()
-            conn.close()
-
-            usr_dict = {u[1]: (u[0], u[2], u[3]) for u in users}
-            user_select = st.selectbox(
-                "Selecciona usuario a editar:", list(usr_dict.keys())
+        idx_users = pestanias.index("Gestión Usuarios")
+        with tab_actual[idx_users]:
+            st.markdown("---")
+            st.subheader("⚙️ ADMINISTRACIÓN GENERAL DE USUARIOS")
+            st.info(
+                "Módulo exclusivo de administración. Puedes dar de alta,"
+                " modificar rol/contraseña o eliminar cuentas de acceso al"
+                " sistema."
             )
 
-            if user_select:
-                uid, urol, upass = usr_dict[user_select]
-                new_name = st.text_input("Nombre:", value=user_select)
-
-                roles_disponibles = ["OPERADOR", "ADMIN_ROL", "ADMIN_USUARIOS"]
-                idx_rol = (
-                    roles_disponibles.index(urol) if urol in roles_disponibles else 0
+            st.markdown("### ➕ Registrar Nuevo Usuario")
+            col_u1, col_u2, col_u3 = st.columns(3)
+            with col_u1:
+                nuevo_nombre = st.text_input("Nombre Completo:").strip().upper()
+            with col_u2:
+                nuevo_rol = st.selectbox(
+                    "Rol asignado:",
+                    ["OPERADOR", "ADMIN_ROL", "ADMIN_USUARIOS"],
                 )
-                new_rol = st.selectbox("Rol:", roles_disponibles, index=idx_rol)
-                new_pass = st.text_input("Contraseña:", value=upass)
+            with col_u3:
+                nueva_pass = st.text_input(
+                    "Contraseña inicial:", value="1234", type="password"
+                )
 
-                if st.button("Guardar Cambios de Usuario", type="primary"):
+            if st.button("👥 Agregar Usuario", type="primary"):
+                if nuevo_nombre and nueva_pass:
                     conn = sqlite3.connect(DB_NAME)
                     cursor = conn.cursor()
-                    cursor.execute(
-                        "UPDATE usuarios SET nombre = ?, rol = ?, password = ? WHERE id ="
-                        " ?",
-                        (new_name, new_rol, new_pass, uid),
-                    )
+                    try:
+                        cursor.execute(
+                            "INSERT INTO usuarios (nombre, rol, password)"
+                            " VALUES (?, ?, ?)",
+                            (nuevo_nombre, nuevo_rol, nueva_pass),
+                        )
+                        conn.commit()
+                        st.success(
+                            f"¡Usuario **{nuevo_nombre}** registrado con"
+                            " éxito!"
+                        )
+                        st.rerun()
+                    except sqlite3.IntegrityError:
+                        st.error(
+                            f"El usuario **{nuevo_nombre}** ya se encuentra"
+                            " registrado."
+                        )
+                    finally:
+                        conn.close()
+                else:
+                    st.warning("Completa el nombre y la contraseña.")
+
+            st.markdown("---")
+            st.markdown("### ✏️ Modificar o Eliminar Usuarios Existentes")
+
+            conn = sqlite3.connect(DB_NAME)
+            df_usuarios = pd.read_sql(
+                "SELECT id, nombre, rol, password FROM usuarios ORDER BY nombre"
+                " ASC",
+                conn,
+            )
+            conn.close()
+
+            if not df_usuarios.empty:
+                df_u_editado = st.data_editor(
+                    df_usuarios,
+                    column_config={
+                        "id": st.column_config.NumberColumn(
+                            "ID", disabled=True
+                        ),
+                        "nombre": st.column_config.TextColumn("Nombre"),
+                        "rol": st.column_config.SelectboxColumn(
+                            "Rol",
+                            options=["OPERADOR", "ADMIN_ROL", "ADMIN_USUARIOS"],
+                        ),
+                        "password": st.column_config.TextColumn("Contraseña"),
+                    },
+                    use_container_width=True,
+                    hide_index=True,
+                    key="editor_usuarios_app",
+                )
+
+                if st.button("💾 Guardar Cambios en Usuarios", type="primary"):
+                    conn = sqlite3.connect(DB_NAME)
+                    cursor = conn.cursor()
+
+                    for idx, row in df_u_editado.iterrows():
+                        cursor.execute(
+                            """
+                            UPDATE usuarios 
+                            SET nombre = ?, rol = ?, password = ? 
+                            WHERE id = ?
+                        """,
+                            (
+                                row["nombre"].strip().upper(),
+                                row["rol"],
+                                str(row["password"]),
+                                row["id"],
+                            ),
+                        )
+
                     conn.commit()
                     conn.close()
-                    st.success("Usuario actualizado correctamente.")
+                    st.success("¡Datos de usuarios actualizados correctamente!")
                     st.rerun()
+
+                st.markdown("---")
+                col_du1, col_du2 = st.columns([1, 2])
+                with col_du1:
+                    u_a_eliminar = st.selectbox(
+                        "Selecciona usuario a eliminar:",
+                        df_usuarios["nombre"].tolist(),
+                        key="sel_del_user",
+                    )
+                with col_du2:
+                    st.write("")
+                    st.write("")
+                    if st.button(
+                        f"❌ Eliminar Usuario {u_a_eliminar}", type="secondary"
+                    ):
+                        if u_a_eliminar.strip().upper() == "ANGEL FLORES":
+                            st.error(
+                                "No es posible eliminar la cuenta principal de"
+                                " administración."
+                            )
+                        else:
+                            conn = sqlite3.connect(DB_NAME)
+                            cursor = conn.cursor()
+                            cursor.execute(
+                                "DELETE FROM usuarios WHERE nombre = ?",
+                                (u_a_eliminar,),
+                            )
+                            conn.commit()
+                            conn.close()
+                            st.success(
+                                f"¡El usuario {u_a_eliminar} ha sido eliminado!"
+                            )
+                            st.rerun()
