@@ -5,57 +5,70 @@ import streamlit as st
 DB_PATH = "asistencia.db"
 
 def obtener_conexion():
+    """Establece conexión con la base de datos SQLite."""
     return sqlite3.connect(DB_PATH)
 
 def cargar_solicitudes():
-    """Obtiene todas las solicitudes registradas en la base de datos."""
-    conn = obtener_conexion()
-    query = """
-        SELECT id, solicitante, fechas, estado, fecha_solicitud 
-        FROM solicitudes 
-        ORDER BY id ASC
     """
-    df = pd.read_sql_query(query, conn)
-    conn.close()
-    return df
+    Obtiene todas las solicitudes registradas en la base de datos de forma segura.
+    Si la tabla no existe o falla la conexión, evita que la app truene.
+    """
+    try:
+        conn = obtener_conexion()
+        query = """
+            SELECT id, solicitante, fechas, estado, fecha_solicitud 
+            FROM solicitudes 
+            ORDER BY id ASC
+        """
+        df = pd.read_sql_query(query, conn)
+        conn.close()
+        return df
+    except Exception as e:
+        # En caso de error o base de datos vacía/nueva, retorna DataFrame estructurado vacío
+        return pd.DataFrame(columns=['id', 'solicitante', 'fechas', 'estado', 'fecha_solicitud'])
 
 def eliminar_solicitud(id_solicitud):
     """
-    Elimina la solicitud por ID y reajusta la secuencia AUTOINCREMENT
-    para que los números de ID no queden desfasados.
+    Elimina la solicitud por ID de la base de datos y reajusta 
+    el contador AUTOINCREMENT de SQLite de forma segura.
     """
     conn = obtener_conexion()
     cursor = conn.cursor()
     
-    # 1. Eliminar el registro específico
+    # 1. Eliminar el registro de la tabla solicitudes
     cursor.execute("DELETE FROM solicitudes WHERE id = ?", (id_solicitud,))
     
-    # 2. Ajustar el contador interno de SQLite (sqlite_sequence)
-    cursor.execute("""
-        UPDATE sqlite_sequence 
-        SET seq = COALESCE((SELECT MAX(id) FROM solicitudes), 0) 
-        WHERE name = 'solicitudes'
-    """)
-    
+    # 2. Reajustar la secuencia de IDs de manera segura (si sqlite_sequence existe)
+    try:
+        cursor.execute("""
+            UPDATE sqlite_sequence 
+            SET seq = COALESCE((SELECT MAX(id) FROM solicitudes), 0) 
+            WHERE name = 'solicitudes'
+        """)
+    except sqlite3.OperationalError:
+        # Si la tabla no usa AUTOINCREMENT explícito o no existe la secuencia, omite el ajuste sin romper
+        pass
+
     conn.commit()
     conn.close()
 
 def modulo_historial_auditoria(usuario_actual="Angel Flores"):
     st.header("📋 HISTORIAL DE DICTÁMENES Y AUDITORÍA")
     
-    # Mensaje o banner personalizado
+    # Mensaje exclusivo del panel
     st.info(
         f"Panel exclusivo de **{usuario_actual}**. Modifica estatus, "
         "utiliza los filtros de búsqueda o elimina registros permanentemente."
     )
     
-    # --- 1. CARGA Y FILTRADO DE DATOS ---
+    # --- 1. CARGA DE DATOS ---
     df_solicitudes = cargar_solicitudes()
     
     if df_solicitudes.empty:
-        st.warning("No hay solicitudes registradas en el sistema.")
+        st.warning("No hay solicitudes registradas actualmente en la base de datos.")
         return
 
+    # --- 2. FILTROS DE BÚSQUEDA ---
     col_busqueda, col_filtro = st.columns([3, 1])
     
     with col_busqueda:
@@ -70,19 +83,19 @@ def modulo_historial_auditoria(usuario_actual="Angel Flores"):
             ["TODOS", "PENDIENTE", "APROBADO", "RECHAZADO"]
         )
 
-    # Aplicar Filtros al DataFrame
+    # Filtrar el DataFrame en memoria
     df_filtrado = df_solicitudes.copy()
     
     if busqueda:
         df_filtrado = df_filtrado[
-            df_filtrado['solicitante'].str.contains(busqueda, case=False, na=False) |
-            df_filtrado['fechas'].str.contains(busqueda, case=False, na=False)
+            df_filtrado['solicitante'].astype(str).str.contains(busqueda, case=False, na=False) |
+            df_filtrado['fechas'].astype(str).str.contains(busqueda, case=False, na=False)
         ]
         
     if filtro_estado != "TODOS":
         df_filtrado = df_filtrado[df_filtrado['estado'] == filtro_estado]
 
-    # --- 2. TABLA INTERACTIVA / EDICIÓN ---
+    # --- 3. TABLA DE REGISTROS ---
     st.dataframe(
         df_filtrado, 
         use_container_width=True, 
@@ -94,10 +107,10 @@ def modulo_historial_auditoria(usuario_actual="Angel Flores"):
 
     st.markdown("---")
 
-    # --- 3. ZONA DE ELIMINACIÓN DE SOLICITUDES ---
+    # --- 4. ZONA DE ELIMINACIÓN DE SOLICITUDES ---
     st.subheader("🗑️ ZONA DE ELIMINACIÓN DE SOLICITUDES")
     
-    # Lista actualizada de IDs presentes actualmente en la BD
+    # Obtener la lista actualizada de IDs numéricos que existen realmente en la BD
     ids_disponibles = df_solicitudes['id'].tolist()
     
     if ids_disponibles:
@@ -111,7 +124,7 @@ def modulo_historial_auditoria(usuario_actual="Angel Flores"):
             )
             
         with col_btn:
-            st.write("") # Espaciador para alinear con el botón
+            st.write("")  # Espaciado para alinear el botón con el desplegable
             st.write("")
             btn_eliminar = st.button(
                 f"❌ Eliminar Solicitud #{id_a_eliminar}", 
@@ -119,16 +132,16 @@ def modulo_historial_auditoria(usuario_actual="Angel Flores"):
             )
             
         if btn_eliminar:
-            # Ejecutamos la eliminación física y reajuste en SQLite
+            # Eliminar en BD y ajustar contador
             eliminar_solicitud(id_a_eliminar)
             
             st.toast(f"Solicitud #{id_a_eliminar} eliminada exitosamente.", icon="🗑️")
             
-            # Forzamos la recarga completa para que el ID desaparezca del selectbox y la tabla de inmediato
+            # Recarga inmediata para refrescar el desplegable y la tabla
             st.rerun()
     else:
         st.info("No hay solicitudes disponibles para eliminar.")
 
-# Ejemplo de ejecución directa:
+# Punto de entrada para probar de forma directa
 if __name__ == "__main__":
     modulo_historial_auditoria()
