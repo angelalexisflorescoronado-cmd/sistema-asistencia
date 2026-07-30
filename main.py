@@ -384,19 +384,20 @@ else:
 
             st.markdown("---")
 
+        # --- CÓDIGO NUEVO (SELECCIÓN MÚLTIPLE) ---
         col_filtro, _ = st.columns([2, 2])
         with col_filtro:
-            empleado_filtrado = st.selectbox(
-                "🔍 Buscar o filtrar por empleado:",
-                options=["-- Mostrar Todos --"] + todos_empleados,
-                index=0,
+            empleados_seleccionados = st.multiselect(
+                "🔍 Buscar o filtrar por empleado(s):",
+                options=todos_empleados,
+                default=[],
+                placeholder="Selecciona uno o varios empleados (o deja vacío para mostrar todos)",
             )
 
-        if empleado_filtrado != "-- Mostrar Todos --":
-            empleados_a_mostrar = [empleado_filtrado]
+        if empleados_seleccionados:
+            empleados_a_mostrar = empleados_seleccionados
         else:
             empleados_a_mostrar = todos_empleados
-
         encabezados = ["Empleado"] + [
             f"{nombres_dias_abrev[i]} {(domingo_inicio + dt.timedelta(days=i)).strftime('%d/%m')}"
             for i in range(8)
