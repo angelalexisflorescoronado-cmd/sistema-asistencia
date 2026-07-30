@@ -9,13 +9,12 @@ DB_NAME = "asistencia.db"
 
 
 # ----------------------------------------------------------------------
-# INICIALIZACIÓN DE BASE DE DATOS (MIGRACIÓN SEGURA)
+# INICIALIZACIÓN DE BASE DE DATOS
 # ----------------------------------------------------------------------
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
-    # 1. Crear tabla usuarios si no existe
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,13 +25,11 @@ def init_db():
         )
     """)
 
-    # 2. Agregar columna nomina si la tabla existía previamente sin ella
     try:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN nomina TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
 
-    # 3. Lista completa de usuarios extraída de la nómina
     usuarios_base = [
         ("10031976", "JIMENEZ, LUIS RAUL", "OPERADOR", "1234"),
         ("10015510", "PEREZ, RAYMUNDO", "OPERADOR", "1234"),
@@ -223,27 +220,6 @@ else:
             margin-bottom: 20px;
             box-shadow: 0px 4px 12px rgba(0,0,0,0.15);
         }
-        /* Estilos para la tabla con código de color de turnos */
-        .tabla-rol-color {
-            width: 100%;
-            border-collapse: collapse;
-            font-family: Arial, sans-serif;
-            margin-bottom: 20px;
-        }
-        .tabla-rol-color th {
-            background-color: #7f7f7f;
-            color: white;
-            text-align: center;
-            padding: 8px;
-            border: 1px solid #555;
-            font-size: 14px;
-        }
-        .tabla-rol-color td {
-            text-align: center;
-            padding: 8px;
-            border: 1px solid #444;
-            font-size: 13px;
-        }
         </style>
     """,
         unsafe_allow_html=True,
@@ -291,7 +267,7 @@ else:
 
     tab_actual = st.tabs(pestanias)
 
-    # --- PESTAÑA 1: ROL DE ASISTENCIA CON CÓDIGO DE COLOR ---
+    # --- PESTAÑA 1: ROL DE ASISTENCIA (TABLA ORIGINAL EDICIÓN + COLORES) ---
     with tab_actual[0]:
         st.subheader("Tabla de Asistencia")
 
@@ -328,11 +304,11 @@ else:
             (lunes + dt.timedelta(days=i)).strftime("%Y-%m-%d")
             for i in range(7)
         ]
-        nombres_dias = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"]
+        nombres_dias_abrev = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
         
-        # Generar encabezados estilo matriz industrial (Día y fecha)
+        # Formato exacto de columna: Lun 13/07, Mar 14/07...
         encabezados = ["Empleado"] + [
-            f"{nombres_dias[(lunes + dt.timedelta(days=i)).weekday()]}<br><small>{(lunes + dt.timedelta(days=i)).strftime('%d/%m/%y')}</small>"
+            f"{nombres_dias_abrev[i]} {(lunes + dt.timedelta(days=i)).strftime('%d/%m')}"
             for i in range(7)
         ]
 
@@ -352,71 +328,66 @@ else:
 
         df_rol = pd.DataFrame(tabla_datos, columns=encabezados)
 
-        # Función de mapeo de color exacto según la captura
+        # Regla de estilos según tus instrucciones exactas:
+        # NOCHE = Azul, DIA = Celeste, V = Amarillo
         def aplicar_estilos_turnos(val):
             val_upper = str(val).strip().upper()
             if val_upper == "DIA":
-                return "background-color: #d9ead3; color: #000000; font-weight: bold;"
+                return "background-color: #80deea; color: #000000; font-weight: bold;"  # Celeste
             elif val_upper == "NOCHE":
-                return "background-color: #274e13; color: #ffffff; font-weight: bold; font-style: italic;"
+                return "background-color: #1565c0; color: #ffffff; font-weight: bold;"  # Azul
             elif val_upper in ["V", "VACACIONES"]:
-                return "background-color: #ffff00; color: #000000; font-weight: bold;"
-            elif val_upper == "-":
-                return "background-color: #000000; color: #000000;"
+                return "background-color: #ffeb3b; color: #000000; font-weight: bold;"  # Amarillo
             return ""
 
-        # SE USA .map(...) EN LUGAR DE .applymap(...) COMPATIBLE CON PANDAS 2.1+
+        # Aplicar el mapa de colores al dataframe
         styler = df_rol.style.map(aplicar_estilos_turnos, subset=encabezados[1:])
-        styler.set_table_attributes('class="tabla-rol-color"')
-        
-        # Renderizar vista coloreada principal
-        st.write(styler.to_html(escape=False), unsafe_allow_html=True)
-        st.markdown("<br>", unsafe_allow_html=True)
 
-        # Matriz de edición para usuarios administradores
         es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
+        opciones_turnos = ["-", "DIA", "NOCHE", "DESCANSO", "V"]
+
+        config_cols = {
+            "Empleado": st.column_config.TextColumn("Empleado", disabled=True)
+        }
+        for col in encabezados[1:]:
+            config_cols[col] = st.column_config.SelectboxColumn(
+                col,
+                options=opciones_turnos,
+                required=True,
+                disabled=not es_admin,
+            )
+
+        # RENDER DE LA TABLA ÚNICA ORIGINAL CON COLORES APLICADOS
+        df_editado = st.data_editor(
+            styler,
+            column_config=config_cols,
+            use_container_width=True,
+            hide_index=True,
+            key="editor_turnos_captura_izquierda",
+        )
+
         if es_admin:
-            with st.expander("✏️ **Modificar / Asignar Turnos de la Semana**", expanded=False):
-                opciones_turnos = ["-", "DIA", "NOCHE", "DESCANSO", "V"]
-                config_cols = {
-                    "Empleado": st.column_config.TextColumn("Empleado", disabled=True)
-                }
-                for col in encabezados[1:]:
-                    config_cols[col] = st.column_config.SelectboxColumn(
-                        col.split("<br>")[0].capitalize(),
-                        options=opciones_turnos,
-                        required=True,
-                    )
+            if st.button("💾 Guardar Cambios en la Tabla", type="primary"):
+                conn = sqlite3.connect(DB_NAME)
+                cursor = conn.cursor()
 
-                df_editado = st.data_editor(
-                    df_rol,
-                    column_config=config_cols,
-                    use_container_width=True,
-                    hide_index=True,
-                    key="editor_turnos_color",
-                )
+                for idx, row in df_editado.iterrows():
+                    emp = row["Empleado"]
+                    for i, f_str in enumerate(dias_fechas):
+                        nuevo_turno = row[encabezados[i + 1]]
+                        cursor.execute(
+                            """
+                            INSERT INTO rol_asistencia (nombre, empleado, fecha, turno, estado) 
+                            VALUES (?, ?, ?, ?, ?)
+                            ON CONFLICT(nombre, fecha) DO UPDATE SET turno=excluded.turno, estado=excluded.estado
+                        """,
+                            (emp, emp, f_str, nuevo_turno, nuevo_turno),
+                        )
 
-                if st.button("💾 Guardar Cambios en la Tabla", type="primary"):
-                    conn = sqlite3.connect(DB_NAME)
-                    cursor = conn.cursor()
-
-                    for idx, row in df_editado.iterrows():
-                        emp = row["Empleado"]
-                        for i, f_str in enumerate(dias_fechas):
-                            nuevo_turno = row[encabezados[i + 1]]
-                            cursor.execute(
-                                """
-                                INSERT INTO rol_asistencia (nombre, empleado, fecha, turno, estado) 
-                                VALUES (?, ?, ?, ?, ?)
-                                ON CONFLICT(nombre, fecha) DO UPDATE SET turno=excluded.turno, estado=excluded.estado
-                            """,
-                                (emp, emp, f_str, nuevo_turno, nuevo_turno),
-                            )
-
-                    conn.commit()
-                    conn.close()
-                    st.success("¡Todos los turnos se guardaron con éxito!")
-                    st.rerun()
+                conn.commit()
+                conn.close()
+                st.success("¡Todos los turnos se guardaron con éxito!")
+                st.rerun()
 
     # --- PESTAÑA 2: SOLICITAR VACACIONES ---
     with tab_actual[1]:
