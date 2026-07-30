@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 import sqlite3
 import streamlit as st
+from st_aggrid import AgGrid, DataReturnMode, GridOptionsBuilder, GridUpdateMode
 
 DB_NAME = "asistencia.db"
 
@@ -309,7 +310,7 @@ else:
 
     tab_actual = st.tabs(pestanias)
 
-    # --- PESTAÑA 1: ROL DE ASISTENCIA (DOMINGO A DOMINGO) ---
+    # --- PESTAÑA 1: ROL DE ASISTENCIA (AG-GRID CON ROW DRAGGING) ---
     with tab_actual[0]:
         st.subheader("Tabla de Asistencia")
 
@@ -327,7 +328,7 @@ else:
                 "Fecha Base:", st.session_state.fecha_ref
             )
 
-        # AJUSTE DOMINGO A DOMINGO (8 DÍAS EN TOTAL)
+        # Rango de 8 días (Domingo a Domingo)
         offset_domingo = (st.session_state.fecha_ref.weekday() + 1) % 7
         domingo_inicio = st.session_state.fecha_ref - dt.timedelta(days=offset_domingo)
         domingo_fin = domingo_inicio + dt.timedelta(days=7)
@@ -345,7 +346,6 @@ else:
         es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
         usuario_actual = st.session_state.usuario
 
-        # Días de la semana arrancando en DOMINGO hasta el SIGUIENTE DOMINGO (8 días)
         dias_fechas = [
             (domingo_inicio + dt.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(8)
         ]
@@ -430,24 +430,40 @@ else:
         df_rol = pd.DataFrame(tabla_datos, columns=encabezados)
         opciones_turnos = ["-", "🟩 DIA", "🟦 NOCHE", "🟨 V", "DESCANSO"]
 
-        config_cols = {
-            "Empleado": st.column_config.TextColumn("Empleado", disabled=True)
-        }
+        # --- CONFIGURACIÓN DE AG-GRID PARA ARRASTRAR FILAS ---
+        gb = GridOptionsBuilder.from_dataframe(df_rol)
+
+        # Habilitar arrastre manual de filas desde la columna Empleado
+        gb.configure_column("Empleado", rowDrag=True, editable=False, pinned="left")
+
+        # Configurar menús desplegables editables para cada día de la semana
         for col in encabezados[1:]:
-            config_cols[col] = st.column_config.SelectboxColumn(
+            gb.configure_column(
                 col,
-                options=opciones_turnos,
-                required=True,
-                disabled=not es_admin,
+                editable=es_admin,
+                cellEditor="agSelectCellEditor",
+                cellEditorParams={"values": opciones_turnos},
             )
 
-        df_editado = st.data_editor(
-            df_rol,
-            column_config=config_cols,
-            use_container_width=True,
-            hide_index=True,
-            key="editor_turnos_captura_izquierda",
+        gb.configure_grid_options(
+            animateRows=True,
+            rowDragManaged=True,
+            suppressMoveWithRowGroup=True,
         )
+
+        grid_options = gb.build()
+
+        grid_response = AgGrid(
+            df_rol,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.MODEL_CHANGED,
+            data_return_mode=DataReturnMode.ALWAYS,
+            fit_columns_on_grid_load=True,
+            theme="streamlit",
+            height=450,
+        )
+
+        df_editado = pd.DataFrame(grid_response["data"])
 
         if es_admin:
             if st.button("💾 Guardar Cambios en la Tabla", type="primary"):
@@ -471,7 +487,7 @@ else:
 
                 conn.commit()
                 conn.close()
-                st.success("¡Todos los turnos se guardaron con éxito!")
+                st.success("¡Todos los turnos y el orden guardados con éxito!")
                 st.rerun()
 
     # --- PESTAÑA 2: SOLICITAR VACACIONES ---
@@ -882,7 +898,7 @@ else:
                             cursor = conn.cursor()
                             cursor.execute("DELETE FROM solicitudes_vacaciones WHERE id = ?", (id_target,))
                             
-                            # Si la tabla queda completamente vacía, reiniciamos la secuencia
+                            # Reiniciar autoincremento si queda vacía
                             cursor.execute("SELECT COUNT(*) FROM solicitudes_vacaciones")
                             total_restantes = cursor.fetchone()[0]
                             if total_restantes == 0:
@@ -910,11 +926,7 @@ else:
                         if confirmar_borrado_total:
                             conn = sqlite3.connect(DB_NAME)
                             cursor = conn.cursor()
-                            
-                            # Borrar todos los datos de la tabla
                             cursor.execute("DELETE FROM solicitudes_vacaciones")
-                            
-                            # Borrar la secuencia para que el siguiente ID comience desde 1
                             cursor.execute("DELETE FROM sqlite_sequence WHERE name='solicitudes_vacaciones'")
                             
                             conn.commit()
