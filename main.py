@@ -53,21 +53,16 @@ def init_db():
         ("10215435", "DONATO BACCO", "ADMIN_ROL", "1234"),
     ]
 
-    # Sincronizar y asegurar el orden exacto y único de los usuarios especificados
-    cursor.execute("DELETE FROM usuarios")
-    try:
-        cursor.execute("DELETE FROM sqlite_sequence WHERE name='usuarios'")
-    except sqlite3.OperationalError:
-        pass
-
-    for nom, nombre, rol, pwd in usuarios_base:
-        cursor.execute(
-            """
-            INSERT INTO usuarios (nomina, nombre, rol, password) 
-            VALUES (?, ?, ?, ?)
-        """,
-            (nom, nombre, rol, pwd),
-        )
+    cursor.execute("SELECT COUNT(*) FROM usuarios")
+    if cursor.fetchone()[0] == 0:
+        for nom, nombre, rol, pwd in usuarios_base:
+            cursor.execute(
+                """
+                INSERT INTO usuarios (nomina, nombre, rol, password) 
+                VALUES (?, ?, ?, ?)
+            """,
+                (nom, nombre, rol, pwd),
+            )
 
     try:
         cursor.execute(
@@ -1105,16 +1100,16 @@ else:
 
                 st.plotly_chart(fig, use_container_width=True)
 
-    # --- PESTAÑA 6: GESTIÓN DE USUARIOS (CON ARRASTRE Y REORDENAMIENTO) ---
+    # --- PESTAÑA 6: GESTIÓN DE USUARIOS (CON NUMERACIÓN EDITABLE) ---
     if es_angel and "Gestión Usuarios" in pestanias:
         idx_users = pestanias.index("Gestión Usuarios")
         with tab_actual[idx_users]:
             st.subheader("⚙️ Administración de Usuarios")
             st.info(
-                "💡 **Tip:** Puedes arrastrar las filas desde el selector"
-                " izquierdo para cambiar el orden de los usuarios. Este nuevo"
-                " orden se actualizará automáticamente en la **Tabla de"
-                " Asistencia**."
+                "💡 **Tip:** Ahora puedes editar directamente la columna de"
+                " numeración (`id`) en la tabla para ordenar y numerar a los"
+                " usuarios a tu preferencia. Los cambios se reflejarán"
+                " automáticamente en la **Tabla de Asistencia**."
             )
 
             conn = sqlite3.connect(DB_NAME)
@@ -1124,22 +1119,35 @@ else:
             )
             conn.close()
 
+            # Permitir edición completa incluyendo la columna id
             df_users_edit = st.data_editor(
                 df_users,
                 key="editor_usuarios_angel",
-                disabled=["id"],
+                disabled=[],
                 num_rows="dynamic",
                 use_container_width=True,
-                hide_index=False,
+                hide_index=True,
             )
 
             col_guardar, _ = st.columns([2, 2])
             with col_guardar:
                 if st.button(
-                    "💾 Guardar Cambios y Orden de Usuarios",
+                    "💾 Guardar Cambios y Numeración de Usuarios",
                     type="primary",
                     use_container_width=True,
                 ):
+                    # Ordenar el DataFrame según la numeración (id) editada por el usuario
+                    if "id" in df_users_edit.columns:
+                        try:
+                            df_users_edit["id"] = pd.to_numeric(
+                                df_users_edit["id"]
+                            )
+                            df_users_edit = df_users_edit.sort_values(
+                                by="id", na_position="last"
+                            )
+                        except Exception:
+                            pass
+
                     conn = sqlite3.connect(DB_NAME)
                     cursor = conn.cursor()
 
@@ -1152,24 +1160,50 @@ else:
                         pass
 
                     for index, row in df_users_edit.iterrows():
+                        uid = row.get("id", None)
                         nom = str(row.get("nomina", "")).strip()
                         nombre = str(row.get("nombre", "")).strip()
                         rol = str(row.get("rol", "OPERADOR")).strip()
                         password = str(row.get("password", "1234")).strip()
+
                         if nombre:
-                            cursor.execute(
-                                """
-                                INSERT INTO usuarios (nomina, nombre, rol, password)
-                                VALUES (?, ?, ?, ?)
-                            """,
-                                (nom, nombre, rol, password),
-                            )
+                            if pd.notna(uid) and str(uid).strip() != "":
+                                try:
+                                    cursor.execute(
+                                        """
+                                        INSERT INTO usuarios (id, nomina, nombre, rol, password)
+                                        VALUES (?, ?, ?, ?, ?)
+                                    """,
+                                        (
+                                            int(uid),
+                                            nom,
+                                            nombre,
+                                            rol,
+                                            password,
+                                        ),
+                                    )
+                                except sqlite3.IntegrityError:
+                                    cursor.execute(
+                                        """
+                                        INSERT INTO usuarios (nomina, nombre, rol, password)
+                                        VALUES (?, ?, ?, ?)
+                                    """,
+                                        (nom, nombre, rol, password),
+                                    )
+                            else:
+                                cursor.execute(
+                                    """
+                                    INSERT INTO usuarios (nomina, nombre, rol, password)
+                                    VALUES (?, ?, ?, ?)
+                                """,
+                                    (nom, nombre, rol, password),
+                                )
 
                     conn.commit()
                     conn.close()
                     st.success(
-                        "¡Base de datos de usuarios y orden actualizados con"
-                        " éxito! Se reflejará en la Tabla de Asistencia."
+                        "¡Base de datos de usuarios y numeración actualizados"
+                        " con éxito! Se reflejará en la Tabla de Asistencia."
                     )
                     st.rerun()
 
