@@ -309,7 +309,7 @@ else:
 
     tab_actual = st.tabs(pestanias)
 
-    # --- PESTAÑA 1: ROL DE ASISTENCIA (DOMINGO A SÁBADO) ---
+    # --- PESTAÑA 1: ROL DE ASISTENCIA (DOMINGO A DOMINGO) ---
     with tab_actual[0]:
         st.subheader("Tabla de Asistencia")
 
@@ -327,15 +327,14 @@ else:
                 "Fecha Base:", st.session_state.fecha_ref
             )
 
-        # AJUSTE DOMINGO A SÁBADO:
-        # (weekday() + 1) % 7 asigna 0 a Domingo, 1 a Lunes, ..., 6 a Sábado
+        # AJUSTE DOMINGO A DOMINGO (8 DÍAS EN TOTAL)
         offset_domingo = (st.session_state.fecha_ref.weekday() + 1) % 7
         domingo_inicio = st.session_state.fecha_ref - dt.timedelta(days=offset_domingo)
-        sabado_fin = domingo_inicio + dt.timedelta(days=6)
+        domingo_fin = domingo_inicio + dt.timedelta(days=7)
 
         st.info(
             f"📅 Semana del **{domingo_inicio.strftime('%d/%m/%Y')}** al"
-            f" **{sabado_fin.strftime('%d/%m/%Y')}**"
+            f" **{domingo_fin.strftime('%d/%m/%Y')}**"
         )
 
         conn = sqlite3.connect(DB_NAME)
@@ -346,11 +345,11 @@ else:
         es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
         usuario_actual = st.session_state.usuario
 
-        # Días de la semana arrancando estrictamente en DOMINGO
+        # Días de la semana arrancando en DOMINGO hasta el SIGUIENTE DOMINGO (8 días)
         dias_fechas = [
-            (domingo_inicio + dt.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)
+            (domingo_inicio + dt.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(8)
         ]
-        nombres_dias_abrev = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
+        nombres_dias_abrev = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 
         if not es_admin:
             st.markdown(f"### 👋 Hola, **{usuario_actual}**")
@@ -362,7 +361,7 @@ else:
                 posibles_nombres.append(f"{partes[-1]}, {partes[0]}")
                 posibles_nombres.append(f"{partes[1]}, {partes[0]}")
 
-            cols_turnos = st.columns(7)
+            cols_turnos = st.columns(8)
             for i, f_str in enumerate(dias_fechas):
                 placeholders = ",".join(["?"] * len(posibles_nombres))
                 cursor.execute(
@@ -400,7 +399,7 @@ else:
 
         encabezados = ["Empleado"] + [
             f"{nombres_dias_abrev[i]} {(domingo_inicio + dt.timedelta(days=i)).strftime('%d/%m')}"
-            for i in range(7)
+            for i in range(8)
         ]
 
         tabla_datos = []
