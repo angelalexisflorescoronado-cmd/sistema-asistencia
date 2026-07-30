@@ -206,7 +206,7 @@ else:
                 del st.session_state["msg_exito"]
             st.rerun()
 
-    st.title("📅 Sistema de Asistencia")
+    st.title("📅 Core Process Espumado")
 
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
