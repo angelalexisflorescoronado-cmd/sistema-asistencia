@@ -327,7 +327,6 @@ else:
                 "Fecha Base:", st.session_state.fecha_ref
             )
 
-        # AJUSTE DOMINGO A DOMINGO (8 DÍAS EN TOTAL)
         offset_domingo = (st.session_state.fecha_ref.weekday() + 1) % 7
         domingo_inicio = st.session_state.fecha_ref - dt.timedelta(
             days=offset_domingo
@@ -347,7 +346,6 @@ else:
         es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
         usuario_actual = st.session_state.usuario
 
-        # Días de la semana arrancando en DOMINGO hasta el SIGUIENTE DOMINGO (8 días)
         dias_fechas = [
             (domingo_inicio + dt.timedelta(days=i)).strftime("%Y-%m-%d")
             for i in range(8)
@@ -458,7 +456,6 @@ else:
                 disabled=not es_admin,
             )
 
-        # Se configura hide_index=False para mostrar el selector/índice de filas permitiendo la selección y arrastre
         df_editado = st.data_editor(
             df_rol,
             column_config=config_cols,
@@ -760,7 +757,7 @@ else:
                             )
                             st.rerun()
 
-    # --- PESTAÑA 4: HISTORIAL (CON REINICIO DE AUTOINCREMENTO EN ID) ---
+    # --- PESTAÑA 4: HISTORIAL ---
     if es_autorizado_especial and "Historial" in pestanias:
         idx_historial = pestanias.index("Historial")
         with tab_actual[idx_historial]:
@@ -1104,11 +1101,15 @@ else:
 
                 st.plotly_chart(fig, use_container_width=True)
 
-    # --- PESTAÑA 6: GESTIÓN DE USUARIOS ---
+    # --- PESTAÑA 6: GESTIÓN DE USUARIOS (CON ARRASTRE Y REORDENAMIENTO) ---
     if es_angel and "Gestión Usuarios" in pestanias:
         idx_users = pestanias.index("Gestión Usuarios")
         with tab_actual[idx_users]:
             st.subheader("⚙️ Administración de Usuarios")
+            st.info(
+                "💡 **Tip:** Puedes arrastrar las filas desde el selector"
+                " izquierdo para cambiar el orden de los usuarios."
+            )
 
             conn = sqlite3.connect(DB_NAME)
             df_users = pd.read_sql(
@@ -1122,60 +1123,48 @@ else:
                 disabled=["id"],
                 num_rows="dynamic",
                 use_container_width=True,
-                hide_index=True,
+                hide_index=False,
             )
 
             col_guardar, _ = st.columns([2, 2])
             with col_guardar:
                 if st.button(
-                    "💾 Guardar Cambios de Usuarios",
+                    "💾 Guardar Cambios y Orden de Usuarios",
                     type="primary",
                     use_container_width=True,
                 ):
                     conn = sqlite3.connect(DB_NAME)
                     cursor = conn.cursor()
 
-                    ids_actuales = df_users_edit["id"].dropna().tolist()
-
-                    if ids_actuales:
-                        placeholders = ",".join(["?"] * len(ids_actuales))
+                    # Reemplazar la tabla manteniendo el nuevo orden definido por el usuario al arrastrar filas
+                    cursor.execute("DELETE FROM usuarios")
+                    try:
                         cursor.execute(
-                            f"DELETE FROM usuarios WHERE id NOT IN ({placeholders})",
-                            ids_actuales,
+                            "DELETE FROM sqlite_sequence WHERE name='usuarios'"
                         )
+                    except sqlite3.OperationalError:
+                        pass
 
                     for index, row in df_users_edit.iterrows():
-                        if pd.notna(row["id"]):
-                            cursor.execute(
-                                """
-                                UPDATE usuarios
-                                SET nomina = ?, nombre = ?, rol = ?, password = ?
-                                WHERE id = ?
-                            """,
-                                (
-                                    row["nomina"],
-                                    row["nombre"],
-                                    row["rol"],
-                                    row["password"],
-                                    row["id"],
-                                ),
-                            )
-                        else:
+                        nom = str(row.get("nomina", "")).strip()
+                        nombre = str(row.get("nombre", "")).strip()
+                        rol = str(row.get("rol", "OPERADOR")).strip()
+                        password = str(row.get("password", "1234")).strip()
+                        if nombre:
                             cursor.execute(
                                 """
                                 INSERT INTO usuarios (nomina, nombre, rol, password)
                                 VALUES (?, ?, ?, ?)
                             """,
-                                (
-                                    row["nomina"],
-                                    row["nombre"],
-                                    row["rol"],
-                                    row["password"],
-                                ),
+                                (nom, nombre, rol, password),
                             )
+
                     conn.commit()
                     conn.close()
-                    st.success("¡Base de datos de usuarios actualizada!")
+                    st.success(
+                        "¡Base de datos de usuarios y orden actualizados con"
+                        " éxito!"
+                    )
                     st.rerun()
 
             st.markdown("---")
