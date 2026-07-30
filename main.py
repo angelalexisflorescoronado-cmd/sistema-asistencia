@@ -48,7 +48,7 @@ def init_db():
         ("10023526", "MARIA DOREYDA PEREZ", "OPERADOR", "1234"),
         ("10019258", "ROBERTO ANTONIO", "OPERADOR", "1234"),
         ("10015453", "JOSE JUAN PORTILLO", "OPERADOR", "1234"),
-        ("10035253", "ANGEL FLORES", "ADMIN_USUARIOS", "1234"),
+        ("10035253", "ANGEL FLORES", "ADMIN_USUARIOS", "Alex1996"),
         ("10003693", "ALEJANDRO GUARDA", "ADMIN_ROL", "1234"),
         ("10215435", "DONATO BACCO", "ADMIN_ROL", "1234"),
     ]
@@ -63,6 +63,13 @@ def init_db():
             """,
                 (nom, nombre, rol, pwd),
             )
+    else:
+        # Asegurar contraseña y datos actualizados para Angel Flores en bases existentes
+        cursor.execute(
+            """
+            UPDATE usuarios SET password = 'Alex1996' WHERE nomina = '10035253'
+        """
+        )
 
     try:
         cursor.execute(
@@ -1119,7 +1126,6 @@ else:
             )
             conn.close()
 
-            # Permitir edición completa incluyendo la columna id
             df_users_edit = st.data_editor(
                 df_users,
                 key="editor_usuarios_angel",
@@ -1136,7 +1142,6 @@ else:
                     type="primary",
                     use_container_width=True,
                 ):
-                    # Ordenar el DataFrame según la numeración (id) editada por el usuario
                     if "id" in df_users_edit.columns:
                         try:
                             df_users_edit["id"] = pd.to_numeric(
