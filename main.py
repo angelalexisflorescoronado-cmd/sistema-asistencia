@@ -309,7 +309,7 @@ else:
 
     tab_actual = st.tabs(pestanias)
 
-    # --- PESTAÑA 1: ROL DE ASISTENCIA ---
+    # --- PESTAÑA 1: ROL DE ASISTENCIA (DOMINGO A SÁBADO) ---
     with tab_actual[0]:
         st.subheader("Tabla de Asistencia")
 
@@ -327,14 +327,15 @@ else:
                 "Fecha Base:", st.session_state.fecha_ref
             )
 
-        lunes = st.session_state.fecha_ref - dt.timedelta(
-            days=st.session_state.fecha_ref.weekday()
-        )
-        domingo = lunes + dt.timedelta(days=6)
+        # AJUSTE DOMINGO A SÁBADO:
+        # (weekday() + 1) % 7 asigna 0 a Domingo, 1 a Lunes, ..., 6 a Sábado
+        offset_domingo = (st.session_state.fecha_ref.weekday() + 1) % 7
+        domingo_inicio = st.session_state.fecha_ref - dt.timedelta(days=offset_domingo)
+        sabado_fin = domingo_inicio + dt.timedelta(days=6)
 
         st.info(
-            f"📅 Semana del **{lunes.strftime('%d/%m/%Y')}** al"
-            f" **{domingo.strftime('%d/%m/%Y')}**"
+            f"📅 Semana del **{domingo_inicio.strftime('%d/%m/%Y')}** al"
+            f" **{sabado_fin.strftime('%d/%m/%Y')}**"
         )
 
         conn = sqlite3.connect(DB_NAME)
@@ -345,23 +346,15 @@ else:
         es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
         usuario_actual = st.session_state.usuario
 
+        # Días de la semana arrancando estrictamente en DOMINGO
+        dias_fechas = [
+            (domingo_inicio + dt.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)
+        ]
+        nombres_dias_abrev = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
+
         if not es_admin:
             st.markdown(f"### 👋 Hola, **{usuario_actual}**")
             st.markdown("##### Tus turnos programados para esta semana:")
-
-            dias_fechas = [
-                (lunes + dt.timedelta(days=i)).strftime("%Y-%m-%d")
-                for i in range(7)
-            ]
-            nombres_dias_abrev = [
-                "Lunes",
-                "Martes",
-                "Miércoles",
-                "Jueves",
-                "Viernes",
-                "Sábado",
-                "Domingo",
-            ]
 
             partes = usuario_actual.replace(",", "").split()
             posibles_nombres = [usuario_actual]
@@ -384,7 +377,7 @@ else:
                 val_bd = res[0] if res and res[0] else "-"
 
                 with cols_turnos[i]:
-                    fecha_fmt = (lunes + dt.timedelta(days=i)).strftime("%d/%m")
+                    fecha_fmt = (domingo_inicio + dt.timedelta(days=i)).strftime("%d/%m")
                     st.metric(
                         label=f"{nombres_dias_abrev[i]} {fecha_fmt}",
                         value=formatear_turno_vista(val_bd),
@@ -405,12 +398,8 @@ else:
         else:
             empleados_a_mostrar = todos_empleados
 
-        dias_fechas = [
-            (lunes + dt.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)
-        ]
-        nombres_dias_abrev = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
         encabezados = ["Empleado"] + [
-            f"{nombres_dias_abrev[i]} {(lunes + dt.timedelta(days=i)).strftime('%d/%m')}"
+            f"{nombres_dias_abrev[i]} {(domingo_inicio + dt.timedelta(days=i)).strftime('%d/%m')}"
             for i in range(7)
         ]
 
