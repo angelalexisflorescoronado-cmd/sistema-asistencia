@@ -136,12 +136,14 @@ init_db()
 # ----------------------------------------------------------------------
 def formatear_turno_vista(val):
     val_clean = str(val).strip().upper()
-    if val_clean == "DIA":
+    if val_clean in ["DIA", "🟩 DIA"]:
         return "🟩 DIA"
-    elif val_clean == "NOCHE":
+    elif val_clean in ["NOCHE", "🟦 NOCHE"]:
         return "🟦 NOCHE"
-    elif val_clean in ["V", "VACACIONES"]:
+    elif val_clean in ["V", "VACACIONES", "🟨 V"]:
         return "🟨 V"
+    elif val_clean == "DESCANSO":
+        return "DESCANSO"
     return "-"
 
 
@@ -153,6 +155,8 @@ def limpiar_turno_bd(val):
         return "NOCHE"
     elif "V" in val_str:
         return "V"
+    elif "DESCANSO" in val_str:
+        return "DESCANSO"
     return "-"
 
 
@@ -835,213 +839,112 @@ else:
                         cursor = conn.cursor()
 
                         for index, row in df_editado.iterrows():
-                            id_reg = row["id"]
-                            nuevo_estado = row["estado"]
-                            solicitante_reg = row["solicitante"]
-                            fechas_reg = row["fechas"]
-
                             cursor.execute(
                                 """
-                                UPDATE solicitudes_vacaciones 
-                                SET estado = ?, autorizado_por = ?, fecha_autorizacion = ?, hora_autorizacion = ? 
+                                UPDATE solicitudes_vacaciones
+                                SET estado = ?,
+                                    autorizado_por = ?,
+                                    fecha_autorizacion = ?,
+                                    hora_autorizacion = ?
                                 WHERE id = ?
                             """,
                                 (
-                                    nuevo_estado,
+                                    row["estado"],
                                     st.session_state.usuario,
                                     f_act,
                                     h_act,
-                                    id_reg,
+                                    row["id"],
                                 ),
                             )
-
-                            dias_lista = [
-                                d.strip()
-                                for d in fechas_reg.split(",")
-                                if d.strip()
-                            ]
-                            if nuevo_estado == "APROBADO":
-                                for d in dias_lista:
-                                    cursor.execute(
-                                        """
-                                        INSERT INTO rol_asistencia (nombre, empleado, fecha, turno, estado) 
-                                        VALUES (?, ?, ?, 'V', 'V') 
-                                        ON CONFLICT(nombre, fecha) DO UPDATE SET turno='V', estado='V'
-                                    """,
-                                        (solicitante_reg, solicitante_reg, d),
-                                    )
-                            elif nuevo_estado == "RECHAZADO":
-                                for d in dias_lista:
-                                    cursor.execute(
-                                        """
-                                        UPDATE rol_asistencia 
-                                        SET turno = '-', estado = '-' 
-                                        WHERE (nombre = ? OR empleado = ?) AND fecha = ? AND turno = 'V'
-                                    """,
-                                        (solicitante_reg, solicitante_reg, d),
-                                    )
-
                         conn.commit()
                         conn.close()
-                        st.success("¡Historial actualizado correctamente!")
-                        st.rerun()
-
-                    st.markdown("---")
-                    st.subheader("🗑️ Eliminar Registro")
-                    id_eliminar = st.number_input(
-                        "Ingrese ID a eliminar:", min_value=1, step=1
-                    )
-                    if st.button("🔴 Eliminar Definitivamente"):
-                        conn = sqlite3.connect(DB_NAME)
-                        cursor = conn.cursor()
-                        cursor.execute(
-                            "DELETE FROM solicitudes_vacaciones WHERE id = ?",
-                            (id_eliminar,),
-                        )
-                        conn.commit()
-                        conn.close()
-                        st.success(f"Registro #{id_eliminar} eliminado.")
+                        st.success("¡Historial y auditoría actualizados correctamente!")
                         st.rerun()
                 else:
-                    st.dataframe(
-                        df_hist, use_container_width=True, hide_index=True
-                    )
+                    st.dataframe(df_hist, use_container_width=True, hide_index=True)
 
-    # --- PESTAÑA 5: CONTROL DE TIEMPO EXTRA (T.E.) ---
+    # --- PESTAÑA 5: CONTROL T.E. (TIEMPO EXTRA) ---
     if es_autorizado_especial and "Control T.E." in pestanias:
         idx_te = pestanias.index("Control T.E.")
         with tab_actual[idx_te]:
-            st.subheader("⏱️ Registro y Control de Tiempo Extra (T.E.)")
+            st.subheader("⏱️ Registrar Tiempo Extra")
 
-            col_te1, col_te2 = st.columns(2)
+            conn = sqlite3.connect(DB_NAME)
+            cursor = conn.cursor()
+            cursor.execute("SELECT nombre FROM usuarios ORDER BY nombre ASC")
+            empleados_te = [r[0] for r in cursor.fetchall()]
+            conn.close()
+
+            col_te1, col_te2, col_te3 = st.columns(3)
             with col_te1:
-                st.markdown("##### Registrar Horas Extra")
-                emp_te = st.selectbox(
-                    "Seleccionar Empleado:", todos_empleados, key="emp_te_sel"
-                )
-                fecha_te = st.date_input(
-                    "Fecha del T.E.:", dt.date.today(), key="fecha_te_sel"
-                )
-                horas_te = st.number_input(
-                    "Horas Trabajadas:",
-                    min_value=0.5,
-                    max_value=24.0,
-                    step=0.5,
-                    value=2.0,
-                )
-                motivo_te = st.text_input(
-                    "Motivo / Actividad realizada:", key="motivo_te_input"
-                )
-
-                if st.button(
-                    "💾 Registrar Tiempo Extra",
-                    type="primary",
-                    use_container_width=True,
-                ):
-                    f_reg = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    conn = sqlite3.connect(DB_NAME)
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        """
-                        INSERT INTO tiempo_extra (empleado, fecha, horas, motivo, registrado_por, fecha_registro)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                        (
-                            emp_te,
-                            fecha_te.strftime("%Y-%m-%d"),
-                            horas_te,
-                            motivo_te,
-                            st.session_state.usuario,
-                            f_reg,
-                        ),
-                    )
-                    conn.commit()
-                    conn.close()
-                    st.success("¡Registro de Tiempo Extra guardado con éxito!")
-                    st.rerun()
-
+                emp_te = st.selectbox("Empleado:", empleados_te)
             with col_te2:
-                st.markdown("##### Acumulado e Historial de T.E.")
-                conn = sqlite3.connect(DB_NAME)
-                query_te = """
-                    SELECT id, empleado, fecha, horas, motivo, registrado_por, fecha_registro 
-                    FROM tiempo_extra 
-                    ORDER BY id DESC
-                """
-                df_te = pd.read_sql(query_te, conn)
-                conn.close()
+                fecha_te = st.date_input("Fecha T.E.:", dt.date.today())
+            with col_te3:
+                horas_te = st.number_input("Horas Extra:", min_value=0.5, max_value=24.0, step=0.5, value=2.0)
 
-                if not df_te.empty:
-                    horas_totales = df_te["horas"].sum()
-                    st.metric("Total Horas Extra Registradas", f"{horas_totales} hrs")
-                    
-                    fig = px.bar(
-                        df_te.groupby("empleado")["horas"].sum().reset_index(),
-                        x="empleado",
-                        y="horas",
-                        title="Horas Extra Acumuladas por Empleado",
-                        labels={"empleado": "Empleado", "horas": "Horas Totales"},
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+            motivo_te = st.text_input("Motivo / Justificación:", "")
+
+            if st.button("💾 Registrar T.E.", type="primary"):
+                f_act = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                conn = sqlite3.connect(DB_NAME)
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO tiempo_extra (empleado, fecha, horas, motivo, registrado_por, fecha_registro)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                    (emp_te, fecha_te.strftime("%Y-%m-%d"), horas_te, motivo_te, st.session_state.usuario, f_act),
+                )
+                conn.commit()
+                conn.close()
+                st.success(f"¡Se registraron {horas_te} hrs extras para {emp_te}!")
+                st.rerun()
 
             st.markdown("---")
-            st.markdown("##### Detalle de Registros de Tiempo Extra")
+            st.subheader("📊 Registros de Tiempo Extra")
+            conn = sqlite3.connect(DB_NAME)
+            df_te = pd.read_sql("SELECT * FROM tiempo_extra ORDER BY id DESC", conn)
+            conn.close()
+
             if not df_te.empty:
                 st.dataframe(df_te, use_container_width=True, hide_index=True)
+                fig = px.bar(df_te, x="empleado", y="horas", title="Horas Extra Acumuladas por Empleado", color="empleado")
+                st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info("No hay registros de Tiempo Extra almacenados.")
+                st.info("No hay registros de tiempo extra registrados.")
 
     # --- PESTAÑA 6: GESTIÓN DE USUARIOS (EXCLUSIVO ANGEL) ---
     if es_angel and "Gestión Usuarios" in pestanias:
         idx_users = pestanias.index("Gestión Usuarios")
         with tab_actual[idx_users]:
-            st.subheader("👥 Administración General de Usuarios")
+            st.subheader("⚙️ Administración de Usuarios")
 
-            col_u1, col_u2 = st.columns(2)
-            with col_u1:
-                st.markdown("##### Agregar Nuevo Usuario")
-                nueva_nom = st.text_input("Nómina:").strip()
-                nuevo_nom = st.text_input("Nombre Completo:").strip().upper()
-                nuevo_rol = st.selectbox(
-                    "Rol de Sistema:",
-                    ["OPERADOR", "ADMIN_ROL", "ADMIN_USUARIOS"],
-                )
-                nuevo_pwd = st.text_input(
-                    "Contraseña Inicial:", value="1234", type="password"
-                )
+            conn = sqlite3.connect(DB_NAME)
+            df_users = pd.read_sql("SELECT id, nomina, nombre, rol, password FROM usuarios", conn)
+            conn.close()
 
-                if st.button("➕ Crear Usuario", type="primary"):
-                    if nueva_nom and nuevo_nom:
-                        conn = sqlite3.connect(DB_NAME)
-                        cursor = conn.cursor()
-                        try:
-                            cursor.execute(
-                                """
-                                INSERT INTO usuarios (nomina, nombre, rol, password) 
-                                VALUES (?, ?, ?, ?)
-                            """,
-                                (nueva_nom, nuevo_nom, nuevo_rol, nuevo_pwd),
-                            )
-                            conn.commit()
-                            st.success(f"Usuario {nuevo_nom} creado.")
-                            st.rerun()
-                        except sqlite3.IntegrityError:
-                            st.error(
-                                "El nombre o número de nómina ya existe."
-                            )
-                        finally:
-                            conn.close()
-                    else:
-                        st.warning("Completa todos los campos obligatorios.")
+            df_users_edit = st.data_editor(
+                df_users,
+                key="editor_usuarios_angel",
+                disabled=["id"],
+                use_container_width=True,
+                hide_index=True,
+            )
 
-            with col_u2:
-                st.markdown("##### Usuarios Registrados")
+            if st.button("💾 Guardar Cambios de Usuarios", type="primary"):
                 conn = sqlite3.connect(DB_NAME)
-                df_users = pd.read_sql(
-                    "SELECT id, nomina, nombre, rol FROM usuarios ORDER BY nombre ASC",
-                    conn,
-                )
+                cursor = conn.cursor()
+                for index, row in df_users_edit.iterrows():
+                    cursor.execute(
+                        """
+                        UPDATE usuarios
+                        SET nomina = ?, nombre = ?, rol = ?, password = ?
+                        WHERE id = ?
+                    """,
+                        (row["nomina"], row["nombre"], row["rol"], row["password"], row["id"]),
+                    )
+                conn.commit()
                 conn.close()
-                st.dataframe(
-                    df_users, use_container_width=True, hide_index=True
-                )
+                st.success("¡Base de datos de usuarios actualizada!")
+                st.rerun()
