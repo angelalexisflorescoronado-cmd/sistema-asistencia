@@ -754,7 +754,7 @@ else:
                             )
                             st.rerun()
 
-    # --- PESTAÑA 4: HISTORIAL (CON OPCIONES DE ELIMINAR 1X1 Y COMPLETO) ---
+    # --- PESTAÑA 4: HISTORIAL (CON REINICIO DE AUTOINCREMENTO EN ID) ---
     if es_autorizado_especial and "Historial" in pestanias:
         idx_historial = pestanias.index("Historial")
         with tab_actual[idx_historial]:
@@ -863,7 +863,7 @@ else:
                 else:
                     st.dataframe(df_hist, use_container_width=True, hide_index=True)
 
-            # --- SECCIÓN DE ELIMINACIÓN DE HISTORIAL (1X1 Y COMPLETO) ---
+            # --- SECCIÓN DE ELIMINACIÓN DE HISTORIAL (1X1 Y COMPLETO CON REINICIO DE ID) ---
             if es_angel and not df_hist_raw.empty:
                 st.markdown("---")
                 st.subheader("🗑️ Opciones de Eliminación de Historial")
@@ -893,6 +893,13 @@ else:
                             conn = sqlite3.connect(DB_NAME)
                             cursor = conn.cursor()
                             cursor.execute("DELETE FROM solicitudes_vacaciones WHERE id = ?", (id_target,))
+                            
+                            # Si la tabla queda completamente vacía, reiniciamos la secuencia
+                            cursor.execute("SELECT COUNT(*) FROM solicitudes_vacaciones")
+                            total_restantes = cursor.fetchone()[0]
+                            if total_restantes == 0:
+                                cursor.execute("DELETE FROM sqlite_sequence WHERE name='solicitudes_vacaciones'")
+
                             conn.commit()
                             conn.close()
                             st.success(f"¡Registro ID {id_target} eliminado exitosamente!")
@@ -900,7 +907,7 @@ else:
                         else:
                             st.warning("Selecciona un registro válido de la lista.")
 
-                # Opción 2: Eliminar Historial Completo
+                # Opción 2: Eliminar Historial Completo + Reiniciar Autoincremento
                 with col_del_all:
                     st.markdown("##### ⚠️ Eliminar Historial Completo")
                     confirmar_borrado_total = st.checkbox(
@@ -915,10 +922,16 @@ else:
                         if confirmar_borrado_total:
                             conn = sqlite3.connect(DB_NAME)
                             cursor = conn.cursor()
+                            
+                            # Borrar todos los datos de la tabla
                             cursor.execute("DELETE FROM solicitudes_vacaciones")
+                            
+                            # Borrar la secuencia para que el siguiente ID comience desde 1
+                            cursor.execute("DELETE FROM sqlite_sequence WHERE name='solicitudes_vacaciones'")
+                            
                             conn.commit()
                             conn.close()
-                            st.success("¡Todo el historial de solicitudes fue eliminado permanentemente!")
+                            st.success("¡Todo el historial fue eliminado y el contador de ID ha sido reiniciado a 1!")
                             st.rerun()
                         else:
                             st.error("Por favor, marca la casilla de confirmación para proceder con el vaciado total.")
