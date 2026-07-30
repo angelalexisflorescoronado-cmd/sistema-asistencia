@@ -314,7 +314,7 @@ else:
         def formatear_turno_vista(val):
             val_clean = str(val).strip().upper()
             if val_clean == "DIA":
-                return "🩵 DIA"
+                return "🟩 DIA"
             elif val_clean == "NOCHE":
                 return "🟦 NOCHE"
             elif val_clean in ["V", "VACACIONES"]:
@@ -349,7 +349,7 @@ else:
         df_rol = pd.DataFrame(tabla_datos, columns=encabezados)
 
         es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
-        opciones_turnos = ["-", "🩵 DIA", "🟦 NOCHE", "🟨 V", "DESCANSO"]
+        opciones_turnos = ["-", "🟩 DIA", "🟦 NOCHE", "🟨 V", "DESCANSO"]
 
         config_cols = {
             "Empleado": st.column_config.TextColumn("Empleado", disabled=True)
