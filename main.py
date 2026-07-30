@@ -206,7 +206,7 @@ else:
                 del st.session_state["msg_exito"]
             st.rerun()
 
-    st.title("📅 Sistema de Asistencia")
+    st.title("📅 Core Process Espumado")
 
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -348,28 +348,22 @@ else:
                 "Domingo",
             ]
 
-            partes_nombre = usuario_actual.replace(",", "").split()
-            primer_nombre = partes_nombre[0] if partes_nombre else usuario_actual
+            partes = usuario_actual.replace(",", "").split()
+            posibles_nombres = [usuario_actual]
+            if len(partes) >= 2:
+                posibles_nombres.append(f"{partes[-1]}, {partes[0]}")
+                posibles_nombres.append(f"{partes[1]}, {partes[0]}")
 
             cols_turnos = st.columns(7)
             for i, f_str in enumerate(dias_fechas):
+                placeholders = ",".join(["?"] * len(posibles_nombres))
                 cursor.execute(
-                    """
+                    f"""
                     SELECT turno FROM rol_asistencia 
-                    WHERE (
-                        nombre = ? OR empleado = ? 
-                        OR nombre LIKE ? OR empleado LIKE ?
-                        OR ? LIKE '%' || nombre || '%'
-                    ) AND fecha = ?
+                    WHERE (nombre IN ({placeholders}) OR empleado IN ({placeholders}))
+                    AND fecha = ?
                 """,
-                    (
-                        usuario_actual,
-                        usuario_actual,
-                        f"%{primer_nombre}%",
-                        f"%{primer_nombre}%",
-                        usuario_actual,
-                        f_str,
-                    ),
+                    (*posibles_nombres, *posibles_nombres, f_str),
                 )
                 res = cursor.fetchone()
                 val_bd = res[0] if res and res[0] else "-"
@@ -410,19 +404,20 @@ else:
         for emp in empleados_a_mostrar:
             fila = [emp]
             partes_emp = emp.replace(",", "").split()
-            p_nom = partes_emp[0] if partes_emp else emp
+            posibles_emp = [emp]
+            if len(partes_emp) >= 2:
+                posibles_emp.append(f"{partes_emp[-1]}, {partes_emp[0]}")
+                posibles_emp.append(f"{partes_emp[1]}, {partes_emp[0]}")
 
             for f_str in dias_fechas:
+                placeholders = ",".join(["?"] * len(posibles_emp))
                 cursor.execute(
-                    """
+                    f"""
                     SELECT turno FROM rol_asistencia 
-                    WHERE (
-                        nombre = ? OR empleado = ? 
-                        OR nombre LIKE ? OR empleado LIKE ?
-                        OR ? LIKE '%' || nombre || '%'
-                    ) AND fecha = ?
+                    WHERE (nombre IN ({placeholders}) OR empleado IN ({placeholders}))
+                    AND fecha = ?
                 """,
-                    (emp, emp, f"%{p_nom}%", f"%{p_nom}%", emp, f_str),
+                    (*posibles_emp, *posibles_emp, f_str),
                 )
                 res = cursor.fetchone()
                 val_bd = res[0] if res and res[0] else "-"
@@ -974,19 +969,24 @@ else:
                 for emp in todos_empleados:
                     dias_trabajados = 0
                     partes_emp = emp.replace(",", "").split()
-                    p_nom = partes_emp[0] if partes_emp else emp
+                    posibles_emp = [emp]
+                    if len(partes_emp) >= 2:
+                        posibles_emp.append(
+                            f"{partes_emp[-1]}, {partes_emp[0]}"
+                        )
+                        posibles_emp.append(
+                            f"{partes_emp[1]}, {partes_emp[0]}"
+                        )
 
                     for f_str in dias_semana_actual:
+                        placeholders = ",".join(["?"] * len(posibles_emp))
                         cursor.execute(
-                            """
+                            f"""
                             SELECT turno FROM rol_asistencia 
-                            WHERE (
-                                nombre = ? OR empleado = ? 
-                                OR nombre LIKE ? OR empleado LIKE ?
-                                OR ? LIKE '%' || nombre || '%'
-                            ) AND fecha = ?
+                            WHERE (nombre IN ({placeholders}) OR empleado IN ({placeholders}))
+                            AND fecha = ?
                         """,
-                            (emp, emp, f"%{p_nom}%", f"%{p_nom}%", emp, f_str),
+                            (*posibles_emp, *posibles_emp, f_str),
                         )
                         res = cursor.fetchone()
                         if res and res[0] in ["DIA", "NOCHE"]:
@@ -1029,28 +1029,26 @@ else:
                     total_dias_te_emp = 0
                     semanas_con_te = 0
                     partes_emp = emp.replace(",", "").split()
-                    p_nom = partes_emp[0] if partes_emp else emp
+                    posibles_emp = [emp]
+                    if len(partes_emp) >= 2:
+                        posibles_emp.append(
+                            f"{partes_emp[-1]}, {partes_emp[0]}"
+                        )
+                        posibles_emp.append(
+                            f"{partes_emp[1]}, {partes_emp[0]}"
+                        )
 
                     for lun_sem, dias_list in semanas_agrupadas.items():
                         dias_trab = 0
                         for d_str in dias_list:
+                            placeholders = ",".join(["?"] * len(posibles_emp))
                             cursor.execute(
-                                """
+                                f"""
                                 SELECT turno FROM rol_asistencia 
-                                WHERE (
-                                    nombre = ? OR empleado = ? 
-                                    OR nombre LIKE ? OR empleado LIKE ?
-                                    OR ? LIKE '%' || nombre || '%'
-                                ) AND fecha = ?
+                                WHERE (nombre IN ({placeholders}) OR empleado IN ({placeholders}))
+                                AND fecha = ?
                             """,
-                                (
-                                    emp,
-                                    emp,
-                                    f"%{p_nom}%",
-                                    f"%{p_nom}%",
-                                    emp,
-                                    d_str,
-                                ),
+                                (*posibles_emp, *posibles_emp, d_str),
                             )
                             res = cursor.fetchone()
                             if res and res[0] in ["DIA", "NOCHE"]:
