@@ -758,7 +758,7 @@ else:
                             )
                             st.rerun()
 
-    # --- PESTAÑA 4: HISTORIAL (CON REINICIO DE AUTOINCREMENTO EN ID) ---
+    # --- PESTAÑA 4: HISTORIAL (CON EDICIÓN Y LIMPIEZA) ---
     if es_autorizado_especial and "Historial" in pestanias:
         idx_historial = pestanias.index("Historial")
         with tab_actual[idx_historial]:
@@ -828,319 +828,168 @@ else:
                             "fecha_autorizacion",
                             "hora_autorizacion",
                         ],
-                        use_container_width=True,
-                        hide_index=True,
-                    )
-
-                    if st.button(
-                        "💾 Guardar Cambios y Registrar Auditoría",
-                        type="primary",
-                    ):
-                        f_act = datetime.now().strftime("%Y-%m-%d")
-                        h_act = datetime.now().strftime("%H:%M:%S")
-
-                        conn = sqlite3.connect(DB_NAME)
-                        cursor = conn.cursor()
-
-                        for index, row in df_editado.iterrows():
-                            cursor.execute(
-                                """
-                                UPDATE solicitudes_vacaciones
-                                SET estado = ?,
-                                    autorizado_por = ?,
-                                    fecha_autorizacion = ?,
-                                    hora_autorizacion = ?
-                                WHERE id = ?
-                            """,
-                                (
-                                    row["estado"],
-                                    st.session_state.usuario,
-                                    f_act,
-                                    h_act,
-                                    row["id"],
-                                ),
+                        column_config={
+                            "estado": st.column_config.SelectboxColumn(
+                                "Estado",
+                                options=["PENDIENTE", "APROBADO", "RECHAZADO"],
+                                required=True,
                             )
-                        conn.commit()
-                        conn.close()
-                        st.success("¡Historial y auditoría actualizados correctamente!")
-                        st.rerun()
-                else:
-                    st.dataframe(df_hist, use_container_width=True, hide_index=True)
-
-            # --- SECCIÓN DE ELIMINACIÓN DE HISTORIAL (1X1 Y COMPLETO CON REINICIO DE ID) ---
-            if es_angel and not df_hist_raw.empty:
-                st.markdown("---")
-                st.subheader("🗑️ Opciones de Eliminación de Historial")
-
-                col_del_single, col_del_all = st.columns(2)
-
-                # Opción 1: Eliminar Registro 1x1
-                with col_del_single:
-                    st.markdown("##### 📌 Eliminar Registro Individual (1x1)")
-                    opciones_reg = [
-                        f"ID {r['id']} | {r['solicitante']} | {r['fechas']} ({r['estado']})"
-                        for _, r in df_hist_raw.iterrows()
-                    ]
-                    reg_sel = st.selectbox(
-                        "Selecciona el registro a borrar:",
-                        options=["-- Seleccionar --"] + opciones_reg,
-                        key="sb_del_hist_single",
+                        },
+                        hide_index=True,
+                        use_container_width=True,
                     )
 
-                    if st.button(
-                        "🗑️ Eliminar Registro Seleccionado",
-                        type="secondary",
-                        use_container_width=True,
-                    ):
-                        if reg_sel != "-- Seleccionar --":
-                            id_target = int(reg_sel.split("ID ")[1].split(" |")[0].strip())
+                    c_sav, c_del_ind, c_del_all = st.columns([2, 2, 2])
+                    with c_sav:
+                        if st.button("💾 Guardar Cambios de Estatus", type="primary"):
                             conn = sqlite3.connect(DB_NAME)
                             cursor = conn.cursor()
-                            cursor.execute("DELETE FROM solicitudes_vacaciones WHERE id = ?", (id_target,))
-                            
-                            # Reiniciar autoincremento si queda vacía
-                            cursor.execute("SELECT COUNT(*) FROM solicitudes_vacaciones")
-                            total_restantes = cursor.fetchone()[0]
-                            if total_restantes == 0:
-                                cursor.execute("DELETE FROM sqlite_sequence WHERE name='solicitudes_vacaciones'")
-
+                            for _, r in df_editado.iterrows():
+                                cursor.execute(
+                                    "UPDATE solicitudes_vacaciones SET estado = ? WHERE id = ?",
+                                    (r["estado"], r["id"]),
+                                )
                             conn.commit()
                             conn.close()
-                            st.success(f"¡Registro ID {id_target} eliminado exitosamente!")
+                            st.success("¡Estatus actualizados correctamente!")
                             st.rerun()
-                        else:
-                            st.warning("Selecciona un registro válido de la lista.")
 
-                # Opción 2: Eliminar Historial Completo + Reiniciar Autoincremento
-                with col_del_all:
-                    st.markdown("##### ⚠️ Eliminar Historial Completo")
-                    confirmar_borrado_total = st.checkbox(
-                        "Confirmar que deseas VACIAR TODO EL HISTORIAL",
-                        key="chk_confirm_del_all_hist",
-                    )
-                    if st.button(
-                        "🔥 Vaciar Historial Completo",
-                        type="primary",
-                        use_container_width=True,
-                    ):
-                        if confirmar_borrado_total:
+                    with c_del_ind:
+                        id_a_borrar = st.number_input(
+                            "ID a eliminar:", min_value=1, step=1, value=1
+                        )
+                        if st.button("🗑️ Eliminar Registro"):
+                            conn = sqlite3.connect(DB_NAME)
+                            cursor = conn.cursor()
+                            cursor.execute(
+                                "DELETE FROM solicitudes_vacaciones WHERE id = ?",
+                                (id_a_borrar,),
+                            )
+                            conn.commit()
+                            conn.close()
+                            st.success(f"Registro ID #{id_a_borrar} eliminado.")
+                            st.rerun()
+
+                    with c_del_all:
+                        if st.button("🔥 Vaciar Todo el Historial", type="secondary"):
                             conn = sqlite3.connect(DB_NAME)
                             cursor = conn.cursor()
                             cursor.execute("DELETE FROM solicitudes_vacaciones")
                             cursor.execute("DELETE FROM sqlite_sequence WHERE name='solicitudes_vacaciones'")
-                            
                             conn.commit()
                             conn.close()
-                            st.success("¡Todo el historial fue eliminado y el contador de ID ha sido reiniciado a 1!")
+                            st.success("Historial vaciado e ID reiniciado.")
                             st.rerun()
-                        else:
-                            st.error("Por favor, marca la casilla de confirmación para proceder con el vaciado total.")
+                else:
+                    st.dataframe(df_hist, hide_index=True, use_container_width=True)
 
-    # --- PESTAÑA 5: CONTROL TE ---
+    # --- PESTAÑA 5: CONTROL DE TIEMPO EXTRA (TE) ---
     if es_autorizado_especial and "Control TE" in pestanias:
         idx_te = pestanias.index("Control TE")
         with tab_actual[idx_te]:
-            st.subheader("⏱️ CONTROL Y ACUMULADO DE TIEMPO EXTRA (TE)")
-
-            st.info(
-                "**Cálculo automático basado en el Rol de Asistencia:** "
-                "Se considera como Tiempo Extra todos los días laborados (`DIA` / `NOCHE`) "
-                "que exceden los 4 días estándar por semana (incluyendo aquellos días "
-                "programados originalmente con vacaciones pero trabajados)."
-            )
-
-            modo_calculo = st.selectbox(
-                "Filtrar por modo de cálculo:",
-                [
-                    "Histórico Acumulado General",
-                    "Días (seleccionar en calendario)",
-                ],
-            )
-
-            rango_fechas_sel = None
-            if modo_calculo == "Días (seleccionar en calendario)":
-                col_c1, _ = st.columns([2, 2])
-                with col_c1:
-                    rango_fechas_sel = st.date_input(
-                        "Selecciona el rango de días en el calendario:",
-                        value=[dt.date.today() - dt.timedelta(days=7), dt.date.today()],
-                    )
-
-            st.markdown("---")
-            st.subheader("📊 Resumen de Días de Tiempo Extra")
+            st.subheader("⏱️ Registro y Control de Tiempo Extra")
 
             conn = sqlite3.connect(DB_NAME)
-            df_rol_all = pd.read_sql(
-                "SELECT nombre AS Empleado, fecha, turno FROM rol_asistencia",
-                conn,
-            )
+            cursor = conn.cursor()
+            cursor.execute("SELECT nombre FROM usuarios ORDER BY nombre ASC")
+            lista_emp_te = [r[0] for r in cursor.fetchall()]
             conn.close()
 
-            if not df_rol_all.empty:
-                df_rol_all["es_laborado"] = df_rol_all["turno"].apply(
-                    lambda t: 1
-                    if str(t).upper().strip() in ["DIA", "NOCHE", "🟩 DIA", "🟦 NOCHE"]
-                    else 0
-                )
+            with st.form("form_tiempo_extra"):
+                c_emp, c_fec, c_hrs = st.columns([2, 1, 1])
+                with c_emp:
+                    emp_te = st.selectbox("Empleado:", lista_emp_te)
+                with c_fec:
+                    fec_te = st.date_input("Fecha TE:", dt.date.today())
+                with c_hrs:
+                    hrs_te = st.number_input("Horas:", min_value=0.5, max_value=24.0, step=0.5)
 
-                if modo_calculo == "Días (seleccionar en calendario)":
-                    if isinstance(rango_fechas_sel, (list, tuple)) and len(rango_fechas_sel) == 2:
-                        f_inicio, f_fin = rango_fechas_sel
-                        f_ini_str = f_inicio.strftime("%Y-%m-%d")
-                        f_fin_str = f_fin.strftime("%Y-%m-%d")
-                        df_rol_all = df_rol_all[
-                            (df_rol_all["fecha"] >= f_ini_str)
-                            & (df_rol_all["fecha"] <= f_fin_str)
-                        ]
-                        rango_label = f"{f_inicio.strftime('%d/%m/%Y')} al {f_fin.strftime('%d/%m/%Y')}"
-                    else:
-                        rango_label = "Rango Seleccionado"
-                else:
-                    rango_label = "Histórico General"
+                motivo_te = st.text_input("Motivo / Justificación:")
+                btn_reg_te = st.form_submit_button("Registrar Tiempo Extra", type="primary")
 
-                resumen_list = []
-                for emp, grp in df_rol_all.groupby("Empleado"):
-                    dias_trabajados = grp["es_laborado"].sum()
-                    dias_te = max(0, dias_trabajados - 4)
-                    if dias_trabajados > 0:
-                        resumen_list.append(
-                            {
-                                "Empleado": emp,
-                                "Periodo / Rango": rango_label,
-                                "Días Trabajados": dias_trabajados,
-                                "Días de T.E.": dias_te,
-                            }
-                        )
-
-                df_resumen = pd.DataFrame(resumen_list)
-
-                if not df_resumen.empty:
-                    st.dataframe(
-                        df_resumen,
-                        use_container_width=True,
-                        hide_index=True,
-                    )
-
-                    df_graf = df_resumen[df_resumen["Días de T.E."] > 0]
-                    if df_graf.empty:
-                        df_graf = df_resumen
-                    y_col = "Días de T.E."
-                    y_label = "Total Días T.E."
-                else:
-                    st.info("No hay registros de asistencia en el periodo seleccionado.")
-                    df_graf = pd.DataFrame()
-            else:
-                st.info("No hay turnos capturados en el Rol de Asistencia.")
-                df_graf = pd.DataFrame()
-
-            if not df_graf.empty:
-                st.markdown("---")
-                st.subheader("📈 Gráfica de Colaboradores con más Tiempo Extra")
-
-                fig = px.bar(
-                    df_graf,
-                    x="Empleado",
-                    y=y_col,
-                    color="Empleado",
-                    text_auto=True,
-                    labels={"Empleado": "Empleado", y_col: y_label},
-                )
-
-                fig.update_traces(
-                    textposition="inside",
-                    textfont_size=12,
-                    textfont_color="black",
-                )
-
-                fig.update_layout(
-                    showlegend=False,
-                    xaxis_tickangle=-30,
-                    height=450,
-                    margin=dict(l=20, r=20, t=30, b=80),
-                    yaxis=dict(gridcolor="rgba(255, 255, 255, 0.1)"),
-                )
-
-                st.plotly_chart(fig, use_container_width=True)
-
-    # --- PESTAÑA 6: GESTIÓN DE USUARIOS ---
-    if es_angel and "Gestión Usuarios" in pestanias:
-        idx_users = pestanias.index("Gestión Usuarios")
-        with tab_actual[idx_users]:
-            st.subheader("⚙️ Administración de Usuarios")
-
-            conn = sqlite3.connect(DB_NAME)
-            df_users = pd.read_sql("SELECT id, nomina, nombre, rol, password FROM usuarios", conn)
-            conn.close()
-
-            df_users_edit = st.data_editor(
-                df_users,
-                key="editor_usuarios_angel",
-                disabled=["id"],
-                num_rows="dynamic",
-                use_container_width=True,
-                hide_index=True,
-            )
-
-            col_guardar, _ = st.columns([2, 2])
-            with col_guardar:
-                if st.button("💾 Guardar Cambios de Usuarios", type="primary", use_container_width=True):
+                if btn_reg_te:
                     conn = sqlite3.connect(DB_NAME)
                     cursor = conn.cursor()
-
-                    ids_actuales = df_users_edit["id"].dropna().tolist()
-
-                    if ids_actuales:
-                        placeholders = ",".join(["?"] * len(ids_actuales))
-                        cursor.execute(f"DELETE FROM usuarios WHERE id NOT IN ({placeholders})", ids_actuales)
-
-                    for index, row in df_users_edit.iterrows():
-                        if pd.notna(row["id"]):
-                            cursor.execute(
-                                """
-                                UPDATE usuarios
-                                SET nomina = ?, nombre = ?, rol = ?, password = ?
-                                WHERE id = ?
-                            """,
-                                (row["nomina"], row["nombre"], row["rol"], row["password"], row["id"]),
-                            )
-                        else:
-                            cursor.execute(
-                                """
-                                INSERT INTO usuarios (nomina, nombre, rol, password)
-                                VALUES (?, ?, ?, ?)
-                            """,
-                                (row["nomina"], row["nombre"], row["rol"], row["password"]),
-                            )
+                    cursor.execute(
+                        """
+                        INSERT INTO tiempo_extra (empleado, fecha, horas, motivo, registrado_por, fecha_registro)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                        (
+                            emp_te,
+                            fec_te.strftime("%Y-%m-%d"),
+                            hrs_te,
+                            motivo_te,
+                            st.session_state.usuario,
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        ),
+                    )
                     conn.commit()
                     conn.close()
-                    st.success("¡Base de datos de usuarios actualizada!")
+                    st.success(f"¡Registradas {hrs_te} hrs extras para {emp_te}!")
                     st.rerun()
 
             st.markdown("---")
-            st.subheader("🗑️ Eliminar Usuario Específico")
+            st.subheader("📊 Resumen y Registros de Horas Extra")
 
-            col_del1, col_del2 = st.columns([3, 1])
-            with col_del1:
-                opciones_eliminar = [
-                    f"{r['nomina']} - {r['nombre']}" for _, r in df_users.iterrows()
-                ]
-                usuario_a_eliminar = st.selectbox(
-                    "Selecciona el usuario que deseas eliminar:",
-                    options=["-- Seleccionar --"] + opciones_eliminar,
+            conn = sqlite3.connect(DB_NAME)
+            df_te = pd.read_sql("SELECT * FROM tiempo_extra ORDER BY id DESC", conn)
+            conn.close()
+
+            if not df_te.empty:
+                fig_te = px.bar(
+                    df_te,
+                    x="empleado",
+                    y="horas",
+                    color="empleado",
+                    title="Horas Extra Totales por Empleado",
                 )
+                st.plotly_chart(fig_te, use_container_width=True)
+                st.dataframe(df_te, hide_index=True, use_container_width=True)
+            else:
+                st.info("No hay horas extra registradas todavía.")
 
-            with col_del2:
-                st.write("")
-                st.write("")
-                if st.button("🗑️ Eliminar Usuario", type="secondary", use_container_width=True):
-                    if usuario_a_eliminar != "-- Seleccionar --":
-                        nomina_target = usuario_a_eliminar.split(" - ")[0].strip()
-                        conn = sqlite3.connect(DB_NAME)
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM usuarios WHERE nomina = ?", (nomina_target,))
-                        conn.commit()
-                        conn.close()
-                        st.success(f"¡Usuario con nómina {nomina_target} eliminado con éxito!")
-                        st.rerun()
-                    else:
-                        st.warning("Selecciona un usuario válido para eliminar.")
+    # --- PESTAÑA 6: GESTIÓN DE USUARIOS ---
+    if es_angel and "Gestión Usuarios" in pestanias:
+        idx_usr = pestanias.index("Gestión Usuarios")
+        with tab_actual[idx_usr]:
+            st.subheader("⚙️ Administración de Usuarios y Accesos")
+
+            with st.expander("➕ Agregar Nuevo Usuario"):
+                with st.form("form_add_user"):
+                    c_nom, c_nam = st.columns(2)
+                    with c_nom:
+                        new_nomina = st.text_input("Nómina:").strip()
+                    with c_nam:
+                        new_nombre = st.text_input("Nombre Completo:").strip().upper()
+
+                    c_rol, c_pwd = st.columns(2)
+                    with c_rol:
+                        new_rol = st.selectbox("Rol:", ["OPERADOR", "ADMIN_ROL", "ADMIN_USUARIOS"])
+                    with c_pwd:
+                        new_pwd = st.text_input("Contraseña Initial:", value="1234")
+
+                    if st.form_submit_button("Crear Usuario", type="primary"):
+                        if new_nomina and new_nombre:
+                            try:
+                                conn = sqlite3.connect(DB_NAME)
+                                cursor = conn.cursor()
+                                cursor.execute(
+                                    "INSERT INTO usuarios (nomina, nombre, rol, password) VALUES (?, ?, ?, ?)",
+                                    (new_nomina, new_nombre, new_rol, new_pwd),
+                                )
+                                conn.commit()
+                                conn.close()
+                                st.success(f"Usuario {new_nombre} registrado con éxito.")
+                                st.rerun()
+                            except sqlite3.IntegrityError:
+                                st.error("Error: La nómina o el nombre ya se encuentran registrados.")
+                        else:
+                            st.warning("Completa la nómina y el nombre.")
+
+            st.markdown("---")
+            conn = sqlite3.connect(DB_NAME)
+            df_users = pd.read_sql("SELECT id, nomina, nombre, rol FROM usuarios ORDER BY nombre ASC", conn)
+            conn.close()
+
+            st.dataframe(df_users, hide_index=True, use_container_width=True)
