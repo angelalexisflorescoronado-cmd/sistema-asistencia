@@ -8,9 +8,9 @@ import streamlit as st
 DB_NAME = "asistencia.db"
 
 # ----------------------------------------------------------------------
-# URL DIRECTA DEL LOGO DE WHIRLPOOL CORPORATION
+# URL DIRECTA Y LIMPIA DEL LOGO DE WHIRLPOOL CORPORATION
 # ----------------------------------------------------------------------
-URL_LOGO = "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Whirlpool_Corporation_Logo.png/640px-Whirlpool_Corporation_Logo.png"
+URL_LOGO = "https://upload.wikimedia.org/wikipedia/commons/c/c2/Whirlpool_Corporation_Logo.png"
 
 
 # ----------------------------------------------------------------------
