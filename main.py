@@ -267,7 +267,7 @@ else:
 
     tab_actual = st.tabs(pestanias)
 
-    # --- PESTAÑA 1: ROL DE ASISTENCIA (TABLA ORIGINAL EDICIÓN + COLORES) ---
+    # --- PESTAÑA 1: ROL DE ASISTENCIA (TABLA ORIGINAL CON BADGES DE COLOR VISIBLES) ---
     with tab_actual[0]:
         st.subheader("Tabla de Asistencia")
 
@@ -305,12 +305,31 @@ else:
             for i in range(7)
         ]
         nombres_dias_abrev = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-        
-        # Formato exacto de columna: Lun 13/07, Mar 14/07...
         encabezados = ["Empleado"] + [
             f"{nombres_dias_abrev[i]} {(lunes + dt.timedelta(days=i)).strftime('%d/%m')}"
             for i in range(7)
         ]
+
+        # Funciones auxiliares para visualización e ingreso de datos
+        def formatear_turno_vista(val):
+            val_clean = str(val).strip().upper()
+            if val_clean == "DIA":
+                return "🩵 DIA"
+            elif val_clean == "NOCHE":
+                return "🟦 NOCHE"
+            elif val_clean in ["V", "VACACIONES"]:
+                return "🟨 V"
+            return "-"
+
+        def limpiar_turno_bd(val):
+            val_str = str(val).upper()
+            if "DIA" in val_str:
+                return "DIA"
+            elif "NOCHE" in val_str:
+                return "NOCHE"
+            elif "V" in val_str:
+                return "V"
+            return "-"
 
         tabla_datos = []
         for emp in empleados:
@@ -322,29 +341,15 @@ else:
                     (emp, emp, f_str),
                 )
                 res = cursor.fetchone()
-                fila.append(res[0] if res and res[0] else "-")
+                val_bd = res[0] if res and res[0] else "-"
+                fila.append(formatear_turno_vista(val_bd))
             tabla_datos.append(fila)
         conn.close()
 
         df_rol = pd.DataFrame(tabla_datos, columns=encabezados)
 
-        # Regla de estilos según tus instrucciones exactas:
-        # NOCHE = Azul, DIA = Celeste, V = Amarillo
-        def aplicar_estilos_turnos(val):
-            val_upper = str(val).strip().upper()
-            if val_upper == "DIA":
-                return "background-color: #80deea; color: #000000; font-weight: bold;"  # Celeste
-            elif val_upper == "NOCHE":
-                return "background-color: #1565c0; color: #ffffff; font-weight: bold;"  # Azul
-            elif val_upper in ["V", "VACACIONES"]:
-                return "background-color: #ffeb3b; color: #000000; font-weight: bold;"  # Amarillo
-            return ""
-
-        # Aplicar el mapa de colores al dataframe
-        styler = df_rol.style.map(aplicar_estilos_turnos, subset=encabezados[1:])
-
         es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
-        opciones_turnos = ["-", "DIA", "NOCHE", "DESCANSO", "V"]
+        opciones_turnos = ["-", "🩵 DIA", "🟦 NOCHE", "🟨 V", "DESCANSO"]
 
         config_cols = {
             "Empleado": st.column_config.TextColumn("Empleado", disabled=True)
@@ -357,9 +362,8 @@ else:
                 disabled=not es_admin,
             )
 
-        # RENDER DE LA TABLA ÚNICA ORIGINAL CON COLORES APLICADOS
         df_editado = st.data_editor(
-            styler,
+            df_rol,
             column_config=config_cols,
             use_container_width=True,
             hide_index=True,
@@ -374,7 +378,9 @@ else:
                 for idx, row in df_editado.iterrows():
                     emp = row["Empleado"]
                     for i, f_str in enumerate(dias_fechas):
-                        nuevo_turno = row[encabezados[i + 1]]
+                        val_pantalla = row[encabezados[i + 1]]
+                        nuevo_turno = limpiar_turno_bd(val_pantalla)
+
                         cursor.execute(
                             """
                             INSERT INTO rol_asistencia (nombre, empleado, fecha, turno, estado) 
