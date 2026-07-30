@@ -7,11 +7,6 @@ import streamlit as st
 
 DB_NAME = "asistencia.db"
 
-# ----------------------------------------------------------------------
-# URL DIRECTA Y LIMPIA DEL LOGO DE WHIRLPOOL CORPORATION
-# ----------------------------------------------------------------------
-URL_LOGO = "https://upload.wikimedia.org/wikipedia/commons/c/c2/Whirlpool_Corporation_Logo.png"
-
 
 # ----------------------------------------------------------------------
 # INICIALIZACIÓN DE BASE DE DATOS
@@ -227,11 +222,11 @@ else:
                 del st.session_state["msg_exito"]
             st.rerun()
 
-    # --- ENCABEZADO CON LOGO Y TÍTULO ---
+    # --- ENCABEZADO CON LOGO LOCAL Y TÍTULO ---
     col_logo, col_titulo = st.columns([1, 4])
     with col_logo:
         try:
-            st.image(URL_LOGO, width=150)
+            st.image("Logotipo de Whirlpool Corporation.png", width=160)
         except Exception:
             st.markdown("🖼️ *(Logo)*")
 
