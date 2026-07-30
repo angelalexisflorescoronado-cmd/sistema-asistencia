@@ -292,7 +292,7 @@ else:
 
     tab_actual = st.tabs(pestanias)
 
-    # --- PESTAÑA 1: ROL DE ASISTENCIA (CON BUSCADOR Y TARJETA INDIVIDUAL) ---
+    # --- PESTAÑA 1: ROL DE ASISTENCIA ---
     with tab_actual[0]:
         st.subheader("Tabla de Asistencia")
 
@@ -348,12 +348,28 @@ else:
                 "Domingo",
             ]
 
+            partes_nombre = usuario_actual.replace(",", "").split()
+            primer_nombre = partes_nombre[0] if partes_nombre else usuario_actual
+
             cols_turnos = st.columns(7)
             for i, f_str in enumerate(dias_fechas):
                 cursor.execute(
-                    "SELECT turno FROM rol_asistencia WHERE (nombre=? OR"
-                    " empleado=?) AND fecha=?",
-                    (usuario_actual, usuario_actual, f_str),
+                    """
+                    SELECT turno FROM rol_asistencia 
+                    WHERE (
+                        nombre = ? OR empleado = ? 
+                        OR nombre LIKE ? OR empleado LIKE ?
+                        OR ? LIKE '%' || nombre || '%'
+                    ) AND fecha = ?
+                """,
+                    (
+                        usuario_actual,
+                        usuario_actual,
+                        f"%{primer_nombre}%",
+                        f"%{primer_nombre}%",
+                        usuario_actual,
+                        f_str,
+                    ),
                 )
                 res = cursor.fetchone()
                 val_bd = res[0] if res and res[0] else "-"
@@ -393,11 +409,20 @@ else:
         tabla_datos = []
         for emp in empleados_a_mostrar:
             fila = [emp]
+            partes_emp = emp.replace(",", "").split()
+            p_nom = partes_emp[0] if partes_emp else emp
+
             for f_str in dias_fechas:
                 cursor.execute(
-                    "SELECT turno FROM rol_asistencia WHERE (nombre=? OR"
-                    " empleado=?) AND fecha=?",
-                    (emp, emp, f_str),
+                    """
+                    SELECT turno FROM rol_asistencia 
+                    WHERE (
+                        nombre = ? OR empleado = ? 
+                        OR nombre LIKE ? OR empleado LIKE ?
+                        OR ? LIKE '%' || nombre || '%'
+                    ) AND fecha = ?
+                """,
+                    (emp, emp, f"%{p_nom}%", f"%{p_nom}%", emp, f_str),
                 )
                 res = cursor.fetchone()
                 val_bd = res[0] if res and res[0] else "-"
@@ -948,11 +973,20 @@ else:
                 cursor = conn.cursor()
                 for emp in todos_empleados:
                     dias_trabajados = 0
+                    partes_emp = emp.replace(",", "").split()
+                    p_nom = partes_emp[0] if partes_emp else emp
+
                     for f_str in dias_semana_actual:
                         cursor.execute(
-                            "SELECT turno FROM rol_asistencia WHERE (nombre=? OR"
-                            " empleado=?) AND fecha=?",
-                            (emp, emp, f_str),
+                            """
+                            SELECT turno FROM rol_asistencia 
+                            WHERE (
+                                nombre = ? OR empleado = ? 
+                                OR nombre LIKE ? OR empleado LIKE ?
+                                OR ? LIKE '%' || nombre || '%'
+                            ) AND fecha = ?
+                        """,
+                            (emp, emp, f"%{p_nom}%", f"%{p_nom}%", emp, f_str),
                         )
                         res = cursor.fetchone()
                         if res and res[0] in ["DIA", "NOCHE"]:
@@ -994,14 +1028,29 @@ else:
                 for emp in todos_empleados:
                     total_dias_te_emp = 0
                     semanas_con_te = 0
+                    partes_emp = emp.replace(",", "").split()
+                    p_nom = partes_emp[0] if partes_emp else emp
 
                     for lun_sem, dias_list in semanas_agrupadas.items():
                         dias_trab = 0
                         for d_str in dias_list:
                             cursor.execute(
-                                "SELECT turno FROM rol_asistencia WHERE"
-                                " (nombre=? OR empleado=?) AND fecha=?",
-                                (emp, emp, d_str),
+                                """
+                                SELECT turno FROM rol_asistencia 
+                                WHERE (
+                                    nombre = ? OR empleado = ? 
+                                    OR nombre LIKE ? OR empleado LIKE ?
+                                    OR ? LIKE '%' || nombre || '%'
+                                ) AND fecha = ?
+                            """,
+                                (
+                                    emp,
+                                    emp,
+                                    f"%{p_nom}%",
+                                    f"%{p_nom}%",
+                                    emp,
+                                    d_str,
+                                ),
                             )
                             res = cursor.fetchone()
                             if res and res[0] in ["DIA", "NOCHE"]:
