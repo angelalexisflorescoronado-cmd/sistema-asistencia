@@ -56,7 +56,6 @@ def init_db():
         ("10215435", "DONATO BACCO", "ADMIN_ROL", "1234"),
     ]
 
-    # Actualizar primero las nóminas vinculadas a cada nombre
     for nom, nombre, rol, pwd in usuarios_base:
         cursor.execute(
             """
@@ -69,7 +68,6 @@ def init_db():
             (nom, nombre, rol, pwd),
         )
 
-    # 4. Intentar crear el índice único de nómina capturando cualquier conflicto previo
     try:
         cursor.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_nomina ON"
@@ -225,12 +223,26 @@ else:
             margin-bottom: 20px;
             box-shadow: 0px 4px 12px rgba(0,0,0,0.15);
         }
-        div[data-baseweb="calendar"] div[role="row"] {
-            font-size: 11px !important;
+        /* Estilos para la tabla con código de color de turnos */
+        .tabla-rol-color {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: Arial, sans-serif;
+            margin-bottom: 20px;
         }
-        div[data-baseweb="calendar"] abbr {
-            text-decoration: none !important;
-            font-size: 11px !important;
+        .tabla-rol-color th {
+            background-color: #7f7f7f;
+            color: white;
+            text-align: center;
+            padding: 8px;
+            border: 1px solid #555;
+            font-size: 14px;
+        }
+        .tabla-rol-color td {
+            text-align: center;
+            padding: 8px;
+            border: 1px solid #444;
+            font-size: 13px;
         }
         </style>
     """,
@@ -279,7 +291,7 @@ else:
 
     tab_actual = st.tabs(pestanias)
 
-    # --- PESTAÑA 1: ROL DE ASISTENCIA INTERACTIVO ---
+    # --- PESTAÑA 1: ROL DE ASISTENCIA CON CÓDIGO DE COLOR ---
     with tab_actual[0]:
         st.subheader("Tabla de Asistencia")
 
@@ -316,9 +328,11 @@ else:
             (lunes + dt.timedelta(days=i)).strftime("%Y-%m-%d")
             for i in range(7)
         ]
-        nombres_dias = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+        nombres_dias = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"]
+        
+        # Generar encabezados estilo matriz industrial (Día y fecha)
         encabezados = ["Empleado"] + [
-            f"{nombres_dias[i]} {(lunes + dt.timedelta(days=i)).strftime('%d/%m')}"
+            f"{nombres_dias[(lunes + dt.timedelta(days=i)).weekday()]}<br><small>{(lunes + dt.timedelta(days=i)).strftime('%d/%m/%y')}</small>"
             for i in range(7)
         ]
 
@@ -338,51 +352,71 @@ else:
 
         df_rol = pd.DataFrame(tabla_datos, columns=encabezados)
 
+        # Función de mapeo de color exacto según la captura
+        def aplicar_estilos_turnos(val):
+            val_upper = str(val).strip().upper()
+            if val_upper == "DIA":
+                return "background-color: #d9ead3; color: #000000; font-weight: bold;"
+            elif val_upper == "NOCHE":
+                return "background-color: #274e13; color: #ffffff; font-weight: bold; font-style: italic;"
+            elif val_upper in ["V", "VACACIONES"]:
+                return "background-color: #ffff00; color: #000000; font-weight: bold;"
+            elif val_upper == "-":
+                return "background-color: #000000; color: #000000;"
+            return ""
+
+        # Aplicar formato de celda mediante Styler
+        styler = df_rol.style.applymap(aplicar_estilos_turnos, subset=encabezados[1:])
+        styler.set_table_attributes('class="tabla-rol-color"')
+        
+        # Renderizar vista coloreada principal
+        st.write(styler.to_html(escape=False), unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Matriz de edición para usuarios administradores
         es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
-        opciones_turnos = ["-", "DIA", "NOCHE", "DESCANSO", "V"]
-
-        config_columnas = {
-            "Empleado": st.column_config.TextColumn("Empleado", disabled=True)
-        }
-        for col in encabezados[1:]:
-            config_columnas[col] = st.column_config.SelectboxColumn(
-                col,
-                options=opciones_turnos,
-                required=True,
-                disabled=not es_admin,
-            )
-
-        df_editado = st.data_editor(
-            df_rol,
-            column_config=config_columnas,
-            use_container_width=True,
-            hide_index=True,
-            disabled=not es_admin,
-            key="editor_turnos",
-        )
-
         if es_admin:
-            if st.button("💾 Guardar Cambios en la Tabla", type="primary"):
-                conn = sqlite3.connect(DB_NAME)
-                cursor = conn.cursor()
+            with st.expander("✏️ **Modificar / Asignar Turnos de la Semana**", expanded=False):
+                opciones_turnos = ["-", "DIA", "NOCHE", "DESCANSO", "V"]
+                config_cols = {
+                    "Empleado": st.column_config.TextColumn("Empleado", disabled=True)
+                }
+                for col in encabezados[1:]:
+                    config_cols[col] = st.column_config.SelectboxColumn(
+                        col.split("<br>")[0].capitalize(),
+                        options=opciones_turnos,
+                        required=True,
+                    )
 
-                for idx, row in df_editado.iterrows():
-                    emp = row["Empleado"]
-                    for i, f_str in enumerate(dias_fechas):
-                        nuevo_turno = row[encabezados[i + 1]]
-                        cursor.execute(
-                            """
-                            INSERT INTO rol_asistencia (nombre, empleado, fecha, turno, estado) 
-                            VALUES (?, ?, ?, ?, ?)
-                            ON CONFLICT(nombre, fecha) DO UPDATE SET turno=excluded.turno, estado=excluded.estado
-                        """,
-                            (emp, emp, f_str, nuevo_turno, nuevo_turno),
-                        )
+                df_editado = st.data_editor(
+                    df_rol,
+                    column_config=config_cols,
+                    use_container_width=True,
+                    hide_index=True,
+                    key="editor_turnos_color",
+                )
 
-                conn.commit()
-                conn.close()
-                st.success("¡Todos los turnos se guardaron con éxito!")
-                st.rerun()
+                if st.button("💾 Guardar Cambios en la Tabla", type="primary"):
+                    conn = sqlite3.connect(DB_NAME)
+                    cursor = conn.cursor()
+
+                    for idx, row in df_editado.iterrows():
+                        emp = row["Empleado"]
+                        for i, f_str in enumerate(dias_fechas):
+                            nuevo_turno = row[encabezados[i + 1]]
+                            cursor.execute(
+                                """
+                                INSERT INTO rol_asistencia (nombre, empleado, fecha, turno, estado) 
+                                VALUES (?, ?, ?, ?, ?)
+                                ON CONFLICT(nombre, fecha) DO UPDATE SET turno=excluded.turno, estado=excluded.estado
+                            """,
+                                (emp, emp, f_str, nuevo_turno, nuevo_turno),
+                            )
+
+                    conn.commit()
+                    conn.close()
+                    st.success("¡Todos los turnos se guardaron con éxito!")
+                    st.rerun()
 
     # --- PESTAÑA 2: SOLICITAR VACACIONES ---
     with tab_actual[1]:
@@ -1087,7 +1121,6 @@ else:
                     cursor = conn.cursor()
                     errores = []
 
-                    # Detectar filas eliminadas directamente de la tabla
                     ids_originales = set(df_usuarios["id"])
                     ids_actuales = set(df_u_editado["id"].dropna().astype(int))
                     ids_eliminados = ids_originales - ids_actuales
@@ -1106,7 +1139,6 @@ else:
                                 "DELETE FROM usuarios WHERE id = ?", (id_del,)
                             )
 
-                    # Actualizar usuarios
                     for idx, row in df_u_editado.iterrows():
                         if pd.notna(row["id"]):
                             try:
@@ -1145,7 +1177,6 @@ else:
                         st.rerun()
 
                 st.markdown("---")
-                # Botón de eliminación rápida por desplegable
                 st.markdown("### 🗑️ Eliminar Usuario Rápidamente")
                 col_du1, col_du2 = st.columns([1, 2])
                 with col_du1:
