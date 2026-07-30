@@ -64,7 +64,6 @@ def init_db():
                 (nom, nombre, rol, pwd),
             )
     else:
-        # Forzar actualización asegurando nómina, contraseña y rol correcto para Angel Flores
         cursor.execute(
             """
             UPDATE usuarios 
@@ -72,7 +71,6 @@ def init_db():
             WHERE nombre = 'ANGEL FLORES'
         """
         )
-        # Si por alguna razón no existía con ese nombre exacto, lo inserta
         cursor.execute("SELECT COUNT(*) FROM usuarios WHERE nombre = 'ANGEL FLORES'")
         if cursor.fetchone()[0] == 0:
             cursor.execute(
@@ -357,6 +355,7 @@ else:
 
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
+        # Sincronización estricta respetando el orden por ID configurado en Administración de Usuarios
         cursor.execute("SELECT nombre FROM usuarios ORDER BY id ASC")
         todos_empleados = [r[0] for r in cursor.fetchall()]
 
@@ -1124,7 +1123,7 @@ else:
         with tab_actual[idx_users]:
             st.subheader("⚙️ Administración de Usuarios")
             st.info(
-                "💡 **Tip:** Ahora puedes editar directamente la columna de"
+                "💡 **Tip:** Puedes editar directamente la columna de"
                 " numeración (`id`) en la tabla para ordenar y numerar a los"
                 " usuarios a tu preferencia. Los cambios se reflejarán"
                 " automáticamente en la **Tabla de Asistencia**."
