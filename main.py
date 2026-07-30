@@ -329,7 +329,9 @@ else:
 
         # AJUSTE DOMINGO A DOMINGO (8 DÍAS EN TOTAL)
         offset_domingo = (st.session_state.fecha_ref.weekday() + 1) % 7
-        domingo_inicio = st.session_state.fecha_ref - dt.timedelta(days=offset_domingo)
+        domingo_inicio = st.session_state.fecha_ref - dt.timedelta(
+            days=offset_domingo
+        )
         domingo_fin = domingo_inicio + dt.timedelta(days=7)
 
         st.info(
@@ -347,9 +349,19 @@ else:
 
         # Días de la semana arrancando en DOMINGO hasta el SIGUIENTE DOMINGO (8 días)
         dias_fechas = [
-            (domingo_inicio + dt.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(8)
+            (domingo_inicio + dt.timedelta(days=i)).strftime("%Y-%m-%d")
+            for i in range(8)
         ]
-        nombres_dias_abrev = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+        nombres_dias_abrev = [
+            "Dom",
+            "Lun",
+            "Mar",
+            "Mié",
+            "Jue",
+            "Vie",
+            "Sáb",
+            "Dom",
+        ]
 
         if not es_admin:
             st.markdown(f"### 👋 Hola, **{usuario_actual}**")
@@ -376,7 +388,9 @@ else:
                 val_bd = res[0] if res and res[0] else "-"
 
                 with cols_turnos[i]:
-                    fecha_fmt = (domingo_inicio + dt.timedelta(days=i)).strftime("%d/%m")
+                    fecha_fmt = (
+                        domingo_inicio + dt.timedelta(days=i)
+                    ).strftime("%d/%m")
                     st.metric(
                         label=f"{nombres_dias_abrev[i]} {fecha_fmt}",
                         value=formatear_turno_vista(val_bd),
@@ -384,14 +398,16 @@ else:
 
             st.markdown("---")
 
-        # --- CÓDIGO NUEVO (SELECCIÓN MÚLTIPLE) ---
         col_filtro, _ = st.columns([2, 2])
         with col_filtro:
             empleados_seleccionados = st.multiselect(
                 "🔍 Buscar o filtrar por empleado(s):",
                 options=todos_empleados,
                 default=[],
-                placeholder="Selecciona uno o varios empleados (o deja vacío para mostrar todos)",
+                placeholder=(
+                    "Selecciona uno o varios empleados (o deja vacío para"
+                    " mostrar todos)"
+                ),
             )
 
         if empleados_seleccionados:
@@ -847,19 +863,21 @@ else:
                             )
                         conn.commit()
                         conn.close()
-                        st.success("¡Historial y auditoría actualizados correctamente!")
+                        st.success(
+                            "¡Historial y auditoría actualizados correctamente!"
+                        )
                         st.rerun()
                 else:
-                    st.dataframe(df_hist, use_container_width=True, hide_index=True)
+                    st.dataframe(
+                        df_hist, use_container_width=True, hide_index=True
+                    )
 
-            # --- SECCIÓN DE ELIMINACIÓN DE HISTORIAL (1X1 Y COMPLETO CON REINICIO DE ID) ---
             if es_angel and not df_hist_raw.empty:
                 st.markdown("---")
                 st.subheader("🗑️ Opciones de Eliminación de Historial")
 
                 col_del_single, col_del_all = st.columns(2)
 
-                # Opción 1: Eliminar Registro 1x1
                 with col_del_single:
                     st.markdown("##### 📌 Eliminar Registro Individual (1x1)")
                     opciones_reg = [
@@ -878,25 +896,40 @@ else:
                         use_container_width=True,
                     ):
                         if reg_sel != "-- Seleccionar --":
-                            id_target = int(reg_sel.split("ID ")[1].split(" |")[0].strip())
+                            id_target = int(
+                                reg_sel.split("ID ")[1]
+                                .split(" |")[0]
+                                .strip()
+                            )
                             conn = sqlite3.connect(DB_NAME)
                             cursor = conn.cursor()
-                            cursor.execute("DELETE FROM solicitudes_vacaciones WHERE id = ?", (id_target,))
-                            
-                            # Si la tabla queda completamente vacía, reiniciamos la secuencia
-                            cursor.execute("SELECT COUNT(*) FROM solicitudes_vacaciones")
+                            cursor.execute(
+                                "DELETE FROM solicitudes_vacaciones WHERE id = ?",
+                                (id_target,),
+                            )
+
+                            cursor.execute(
+                                "SELECT COUNT(*) FROM solicitudes_vacaciones"
+                            )
                             total_restantes = cursor.fetchone()[0]
                             if total_restantes == 0:
-                                cursor.execute("DELETE FROM sqlite_sequence WHERE name='solicitudes_vacaciones'")
+                                cursor.execute(
+                                    "DELETE FROM sqlite_sequence WHERE"
+                                    " name='solicitudes_vacaciones'"
+                                )
 
                             conn.commit()
                             conn.close()
-                            st.success(f"¡Registro ID {id_target} eliminado exitosamente!")
+                            st.success(
+                                f"¡Registro ID {id_target} eliminado"
+                                " exitosamente!"
+                            )
                             st.rerun()
                         else:
-                            st.warning("Selecciona un registro válido de la lista.")
+                            st.warning(
+                                "Selecciona un registro válido de la lista."
+                            )
 
-                # Opción 2: Eliminar Historial Completo + Reiniciar Autoincremento
                 with col_del_all:
                     st.markdown("##### ⚠️ Eliminar Historial Completo")
                     confirmar_borrado_total = st.checkbox(
@@ -911,19 +944,25 @@ else:
                         if confirmar_borrado_total:
                             conn = sqlite3.connect(DB_NAME)
                             cursor = conn.cursor()
-                            
-                            # Borrar todos los datos de la tabla
+
                             cursor.execute("DELETE FROM solicitudes_vacaciones")
-                            
-                            # Borrar la secuencia para que el siguiente ID comience desde 1
-                            cursor.execute("DELETE FROM sqlite_sequence WHERE name='solicitudes_vacaciones'")
-                            
+                            cursor.execute(
+                                "DELETE FROM sqlite_sequence WHERE"
+                                " name='solicitudes_vacaciones'"
+                            )
+
                             conn.commit()
                             conn.close()
-                            st.success("¡Todo el historial fue eliminado y el contador de ID ha sido reiniciado a 1!")
+                            st.success(
+                                "¡Todo el historial fue eliminado y el"
+                                " contador de ID ha sido reiniciado a 1!"
+                            )
                             st.rerun()
                         else:
-                            st.error("Por favor, marca la casilla de confirmación para proceder con el vaciado total.")
+                            st.error(
+                                "Por favor, marca la casilla de confirmación"
+                                " para proceder con el vaciado total."
+                            )
 
     # --- PESTAÑA 5: CONTROL TE ---
     if es_autorizado_especial and "Control TE" in pestanias:
@@ -932,10 +971,11 @@ else:
             st.subheader("⏱️ CONTROL Y ACUMULADO DE TIEMPO EXTRA (TE)")
 
             st.info(
-                "**Cálculo automático basado en el Rol de Asistencia:** "
-                "Se considera como Tiempo Extra todos los días laborados (`DIA` / `NOCHE`) "
-                "que exceden los 4 días estándar por semana (incluyendo aquellos días "
-                "programados originalmente con vacaciones pero trabajados)."
+                "**Cálculo automático basado en el Rol de Asistencia:** Se"
+                " considera como Tiempo Extra todos los días laborados (`DIA` /"
+                " `NOCHE`) que exceden los 4 días estándar por semana"
+                " (incluyendo aquellos días programados originalmente con"
+                " vacaciones pero trabajados)."
             )
 
             modo_calculo = st.selectbox(
@@ -952,7 +992,10 @@ else:
                 with col_c1:
                     rango_fechas_sel = st.date_input(
                         "Selecciona el rango de días en el calendario:",
-                        value=[dt.date.today() - dt.timedelta(days=7), dt.date.today()],
+                        value=[
+                            dt.date.today() - dt.timedelta(days=7),
+                            dt.date.today(),
+                        ],
                     )
 
             st.markdown("---")
@@ -968,12 +1011,16 @@ else:
             if not df_rol_all.empty:
                 df_rol_all["es_laborado"] = df_rol_all["turno"].apply(
                     lambda t: 1
-                    if str(t).upper().strip() in ["DIA", "NOCHE", "🟩 DIA", "🟦 NOCHE"]
+                    if str(t).upper().strip()
+                    in ["DIA", "NOCHE", "🟩 DIA", "🟦 NOCHE"]
                     else 0
                 )
 
                 if modo_calculo == "Días (seleccionar en calendario)":
-                    if isinstance(rango_fechas_sel, (list, tuple)) and len(rango_fechas_sel) == 2:
+                    if (
+                        isinstance(rango_fechas_sel, (list, tuple))
+                        and len(rango_fechas_sel) == 2
+                    ):
                         f_inicio, f_fin = rango_fechas_sel
                         f_ini_str = f_inicio.strftime("%Y-%m-%d")
                         f_fin_str = f_fin.strftime("%Y-%m-%d")
@@ -1016,7 +1063,10 @@ else:
                     y_col = "Días de T.E."
                     y_label = "Total Días T.E."
                 else:
-                    st.info("No hay registros de asistencia en el periodo seleccionado.")
+                    st.info(
+                        "No hay registros de asistencia en el periodo"
+                        " seleccionado."
+                    )
                     df_graf = pd.DataFrame()
             else:
                 st.info("No hay turnos capturados en el Rol de Asistencia.")
@@ -1024,7 +1074,9 @@ else:
 
             if not df_graf.empty:
                 st.markdown("---")
-                st.subheader("📈 Gráfica de Colaboradores con más Tiempo Extra")
+                st.subheader(
+                    "📈 Gráfica de Colaboradores con más Tiempo Extra"
+                )
 
                 fig = px.bar(
                     df_graf,
@@ -1058,7 +1110,9 @@ else:
             st.subheader("⚙️ Administración de Usuarios")
 
             conn = sqlite3.connect(DB_NAME)
-            df_users = pd.read_sql("SELECT id, nomina, nombre, rol, password FROM usuarios", conn)
+            df_users = pd.read_sql(
+                "SELECT id, nomina, nombre, rol, password FROM usuarios", conn
+            )
             conn.close()
 
             df_users_edit = st.data_editor(
@@ -1072,7 +1126,11 @@ else:
 
             col_guardar, _ = st.columns([2, 2])
             with col_guardar:
-                if st.button("💾 Guardar Cambios de Usuarios", type="primary", use_container_width=True):
+                if st.button(
+                    "💾 Guardar Cambios de Usuarios",
+                    type="primary",
+                    use_container_width=True,
+                ):
                     conn = sqlite3.connect(DB_NAME)
                     cursor = conn.cursor()
 
@@ -1080,7 +1138,10 @@ else:
 
                     if ids_actuales:
                         placeholders = ",".join(["?"] * len(ids_actuales))
-                        cursor.execute(f"DELETE FROM usuarios WHERE id NOT IN ({placeholders})", ids_actuales)
+                        cursor.execute(
+                            f"DELETE FROM usuarios WHERE id NOT IN ({placeholders})",
+                            ids_actuales,
+                        )
 
                     for index, row in df_users_edit.iterrows():
                         if pd.notna(row["id"]):
@@ -1090,7 +1151,13 @@ else:
                                 SET nomina = ?, nombre = ?, rol = ?, password = ?
                                 WHERE id = ?
                             """,
-                                (row["nomina"], row["nombre"], row["rol"], row["password"], row["id"]),
+                                (
+                                    row["nomina"],
+                                    row["nombre"],
+                                    row["rol"],
+                                    row["password"],
+                                    row["id"],
+                                ),
                             )
                         else:
                             cursor.execute(
@@ -1098,7 +1165,12 @@ else:
                                 INSERT INTO usuarios (nomina, nombre, rol, password)
                                 VALUES (?, ?, ?, ?)
                             """,
-                                (row["nomina"], row["nombre"], row["rol"], row["password"]),
+                                (
+                                    row["nomina"],
+                                    row["nombre"],
+                                    row["rol"],
+                                    row["password"],
+                                ),
                             )
                     conn.commit()
                     conn.close()
@@ -1111,7 +1183,8 @@ else:
             col_del1, col_del2 = st.columns([3, 1])
             with col_del1:
                 opciones_eliminar = [
-                    f"{r['nomina']} - {r['nombre']}" for _, r in df_users.iterrows()
+                    f"{r['nomina']} - {r['nombre']}"
+                    for _, r in df_users.iterrows()
                 ]
                 usuario_a_eliminar = st.selectbox(
                     "Selecciona el usuario que deseas eliminar:",
@@ -1121,15 +1194,29 @@ else:
             with col_del2:
                 st.write("")
                 st.write("")
-                if st.button("🗑️ Eliminar Usuario", type="secondary", use_container_width=True):
+                if st.button(
+                    "🗑️ Eliminar Usuario",
+                    type="secondary",
+                    use_container_width=True,
+                ):
                     if usuario_a_eliminar != "-- Seleccionar --":
-                        nomina_target = usuario_a_eliminar.split(" - ")[0].strip()
+                        nomina_target = usuario_a_eliminar.split(" - ")[
+                            0
+                        ].strip()
                         conn = sqlite3.connect(DB_NAME)
                         cursor = conn.cursor()
-                        cursor.execute("DELETE FROM usuarios WHERE nomina = ?", (nomina_target,))
+                        cursor.execute(
+                            "DELETE FROM usuarios WHERE nomina = ?",
+                            (nomina_target,),
+                        )
                         conn.commit()
                         conn.close()
-                        st.success(f"¡Usuario con nómina {nomina_target} eliminado con éxito!")
+                        st.success(
+                            f"¡Usuario con nómina {nomina_target} eliminado"
+                            " con éxito!"
+                        )
                         st.rerun()
                     else:
-                        st.warning("Selecciona un usuario válido para eliminar.")
+                        st.warning(
+                            "Selecciona un usuario válido para eliminar."
+                        )
