@@ -341,7 +341,6 @@ else:
 
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
-        # SE MODIFICÓ AQUÍ PARA RESPETAR EL ORDEN EXACTO POR ID (IGUAL QUE EN GESTIÓN DE USUARIOS)
         cursor.execute("SELECT nombre FROM usuarios ORDER BY id ASC")
         todos_empleados = [r[0] for r in cursor.fetchall()]
 
@@ -459,11 +458,12 @@ else:
                 disabled=not es_admin,
             )
 
+        # Se configura hide_index=False para mostrar el selector/índice de filas permitiendo la selección y arrastre
         df_editado = st.data_editor(
             df_rol,
             column_config=config_cols,
             use_container_width=True,
-            hide_index=True,
+            hide_index=False,
             key="editor_turnos_captura_izquierda",
         )
 
