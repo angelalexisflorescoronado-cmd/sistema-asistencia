@@ -111,7 +111,6 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
-    # Tabla adicional para Control de Tiempo Extra (T.E.)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tiempo_extra (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -224,7 +223,7 @@ else:
                 del st.session_state["msg_exito"]
             st.rerun()
 
-    st.title("📅 Sistema de Asistencia")
+    st.title("📱 Control de Asistencia y Vacaciones")
 
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -268,11 +267,11 @@ else:
         unsafe_allow_html=True,
     )
 
-    pestanias = ["Rol de Asistencia", "Solicitar Vacaciones"]
+    pestanias = ["Rol de Asistencia", "Solicitar vacaciones"]
 
     if st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]:
         if num_pendientes > 0:
-            texto_notif = f"🔴 NOTIFICACIONES ({num_pendientes})"
+            texto_notif = f"🔴 Notificaciones ({num_pendientes})"
         else:
             texto_notif = "Notificaciones 🔔"
         pestanias.append(texto_notif)
@@ -289,8 +288,8 @@ else:
     if es_autorizado_especial:
         if "Historial" not in pestanias:
             pestanias.append("Historial")
-        if "Control T.E." not in pestanias:
-            pestanias.append("Control T.E.")
+        if "Control TE" not in pestanias:
+            pestanias.append("Control TE")
 
     if es_angel:
         if "Gestión Usuarios" not in pestanias:
@@ -863,56 +862,151 @@ else:
                 else:
                     st.dataframe(df_hist, use_container_width=True, hide_index=True)
 
-    # --- PESTAÑA 5: CONTROL T.E. (TIEMPO EXTRA) ---
-    if es_autorizado_especial and "Control T.E." in pestanias:
-        idx_te = pestanias.index("Control T.E.")
+    # --- PESTAÑA 5: CONTROL TE (TIEMPO EXTRA CON VISTA SEGÚN CAPTURA) ---
+    if es_autorizado_especial and "Control TE" in pestanias:
+        idx_te = pestanias.index("Control TE")
         with tab_actual[idx_te]:
-            st.subheader("⏱️ Registrar Tiempo Extra")
+            st.subheader("⏱️ CONTROL Y ACUMULADO DE TIEMPO EXTRA (TE)")
 
-            conn = sqlite3.connect(DB_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT nombre FROM usuarios ORDER BY nombre ASC")
-            empleados_te = [r[0] for r in cursor.fetchall()]
-            conn.close()
+            # Bloque Informativo Azul
+            st.info(
+                "**Cálculo automático basado en el Rol de Asistencia:** "
+                "Se considera como Tiempo Extra todos los días laborados (`DIA` / `NOCHE`) "
+                "que exceden los 4 días estándar por semana (incluyendo aquellos días "
+                "programados originalmente con vacaciones pero trabajados)."
+            )
 
-            col_te1, col_te2, col_te3 = st.columns(3)
-            with col_te1:
-                emp_te = st.selectbox("Empleado:", empleados_te)
-            with col_te2:
-                fecha_te = st.date_input("Fecha T.E.:", dt.date.today())
-            with col_te3:
-                horas_te = st.number_input("Horas Extra:", min_value=0.5, max_value=24.0, step=0.5, value=2.0)
-
-            motivo_te = st.text_input("Motivo / Justificación:", "")
-
-            if st.button("💾 Registrar T.E.", type="primary"):
-                f_act = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                conn = sqlite3.connect(DB_NAME)
-                cursor = conn.cursor()
-                cursor.execute(
-                    """
-                    INSERT INTO tiempo_extra (empleado, fecha, horas, motivo, registrado_por, fecha_registro)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                    (emp_te, fecha_te.strftime("%Y-%m-%d"), horas_te, motivo_te, st.session_state.usuario, f_act),
-                )
-                conn.commit()
-                conn.close()
-                st.success(f"¡Se registraron {horas_te} hrs extras para {emp_te}!")
-                st.rerun()
+            # Selector de Modo de Cálculo
+            modo_calculo = st.selectbox(
+                "Filtrar por modo de cálculo:",
+                [
+                    "Histórico Acumulado General",
+                    "Semana Actual",
+                    "Registros Manuales Directos",
+                ],
+            )
 
             st.markdown("---")
-            st.subheader("📊 Registros de Tiempo Extra")
-            conn = sqlite3.connect(DB_NAME)
-            df_te = pd.read_sql("SELECT * FROM tiempo_extra ORDER BY id DESC", conn)
-            conn.close()
+            st.subheader("📊 Resumen de Días de Tiempo Extra")
 
-            if not df_te.empty:
-                st.dataframe(df_te, use_container_width=True, hide_index=True)
-                fig = px.bar(df_te, x="empleado", y="horas", title="Horas Extra Acumuladas por Empleado", color="empleado")
-                st.plotly_chart(fig, use_container_width=True)
+            conn = sqlite3.connect(DB_NAME)
+
+            if modo_calculo == "Registros Manuales Directos":
+                df_te = pd.read_sql(
+                    """
+                    SELECT empleado AS Empleado, fecha AS Fecha, horas AS [Horas T.E.], motivo AS Motivo 
+                    FROM tiempo_extra 
+                    ORDER BY id DESC
+                """,
+                    conn,
+                )
+                conn.close()
+
+                if not df_te.empty:
+                    st.dataframe(
+                        df_te, use_container_width=True, hide_index=True
+                    )
+                    df_graf = (
+                        df_te.groupby("Empleado")["Horas T.E."]
+                        .sum()
+                        .reset_index()
+                    )
+                    y_col = "Horas T.E."
+                    y_label = "Total Horas T.E."
+                else:
+                    st.warning("No hay registros manuales de tiempo extra.")
+                    df_graf = pd.DataFrame()
+
             else:
-                st.info("No hay registros de tiempo extra registrados.")
+                df_rol_all = pd.read_sql(
+                    "SELECT nombre AS Empleado, fecha, turno FROM rol_asistencia",
+                    conn,
+                )
+                conn.close()
+
+                if not df_rol_all.empty:
+                    # Identificación de turnos laborados
+                    df_rol_all["es_laborado"] = df_rol_all["turno"].apply(
+                        lambda t: 1
+                        if str(t).upper().strip() in ["DIA", "NOCHE", "🟩 DIA", "🟦 NOCHE"]
+                        else 0
+                    )
+
+                    if modo_calculo == "Semana Actual":
+                        lunes_str = lunes.strftime("%Y-%m-%d")
+                        domingo_str = domingo.strftime("%Y-%m-%d")
+                        df_rol_all = df_rol_all[
+                            (df_rol_all["fecha"] >= lunes_str)
+                            & (df_rol_all["fecha"] <= domingo_str)
+                        ]
+                        semana_label = f"{lunes.strftime('%Y-%m-%d')} al {domingo.strftime('%Y-%m-%d')}"
+                    else:
+                        semana_label = f"{lunes.strftime('%Y-%m-%d')} al {domingo.strftime('%Y-%m-%d')}"
+
+                    resumen_list = []
+                    for emp, grp in df_rol_all.groupby("Empleado"):
+                        dias_trabajados = grp["es_laborado"].sum()
+                        dias_te = max(0, dias_trabajados - 4)
+                        if dias_trabajados > 0:
+                            resumen_list.append(
+                                {
+                                    "Empleado": emp,
+                                    "Semana": semana_label,
+                                    "Días Trabajados": dias_trabajados,
+                                    "Días de T.E.": dias_te,
+                                }
+                            )
+
+                    df_resumen = pd.DataFrame(resumen_list)
+
+                    if not df_resumen.empty:
+                        st.dataframe(
+                            df_resumen,
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+
+                        df_graf = df_resumen[df_resumen["Días de T.E."] > 0]
+                        if df_graf.empty:
+                            df_graf = df_resumen
+                        y_col = "Días de T.E."
+                        y_label = "Total Días T.E."
+                    else:
+                        st.info("No hay registros en el rango seleccionado.")
+                        df_graf = pd.DataFrame()
+                else:
+                    st.info("No hay turnos capturados en el Rol de Asistencia.")
+                    df_graf = pd.DataFrame()
+
+            # --- RENDERING DE LA GRÁFICA MULTICOLOR ---
+            if not df_graf.empty:
+                st.markdown("---")
+                st.subheader("📈 Gráfica de Colaboradores con más Tiempo Extra")
+
+                fig = px.bar(
+                    df_graf,
+                    x="Empleado",
+                    y=y_col,
+                    color="Empleado",
+                    text_auto=True,
+                    labels={"Empleado": "Empleado", y_col: y_label},
+                )
+
+                fig.update_traces(
+                    textposition="inside",
+                    textfont_size=12,
+                    textfont_color="black",
+                )
+
+                fig.update_layout(
+                    showlegend=False,
+                    xaxis_tickangle=-30,
+                    height=450,
+                    margin=dict(l=20, r=20, t=30, b=80),
+                    yaxis=dict(gridcolor="rgba(255, 255, 255, 0.1)"),
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
 
     # --- PESTAÑA 6: GESTIÓN DE USUARIOS (EXCLUSIVO ANGEL) ---
     if es_angel and "Gestión Usuarios" in pestanias:
