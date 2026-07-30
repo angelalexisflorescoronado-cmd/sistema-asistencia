@@ -527,7 +527,7 @@ else:
                         fechas_str_emp = ", ".join(dias_coincidentes)
                         alerta_msg = (
                             f"⚠️ ALERTA DE EMPALME CON {otro_sol} SOLICITO EL"
-                            f" DIA {fechas_str_emp} SE TEDRA QUE REVISAR EN"
+                            f" DIA {fechas_str_emp} SE REVISARA EN"
                             " CONJUNTO PARA VER LA NECESIDAD."
                         )
                         alertas_empalme_usuario.append(alerta_msg)
