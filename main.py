@@ -754,7 +754,7 @@ else:
                             )
                             st.rerun()
 
-    # --- PESTAÑA 4: HISTORIAL (EXCLUSIVO PARA ANGEL, ALEJANDRO Y DONATO) ---
+    # --- PESTAÑA 4: HISTORIAL (CON OPCIONES DE ELIMINAR 1X1 Y COMPLETO) ---
     if es_autorizado_especial and "Historial" in pestanias:
         idx_historial = pestanias.index("Historial")
         with tab_actual[idx_historial]:
@@ -765,7 +765,7 @@ else:
                 st.info(
                     "Panel exclusivo de **Angel Flores**. Modifica estatus,"
                     " utiliza los filtros de búsqueda o elimina registros"
-                    " permanentemente."
+                    " individualmente o por completo."
                 )
             else:
                 st.info(
@@ -791,9 +791,10 @@ else:
                 FROM solicitudes_vacaciones 
                 ORDER BY id DESC
             """
-            df_hist = pd.read_sql(query, conn)
+            df_hist_raw = pd.read_sql(query, conn)
             conn.close()
 
+            df_hist = df_hist_raw.copy()
             if not df_hist.empty:
                 if filtro_texto:
                     df_hist = df_hist[
@@ -813,7 +814,7 @@ else:
                 if es_angel:
                     df_editado = st.data_editor(
                         df_hist,
-                        key="editor_hist_exclusivo_v10",
+                        key="editor_hist_exclusivo_v11",
                         disabled=[
                             "id",
                             "solicitante",
@@ -862,13 +863,72 @@ else:
                 else:
                     st.dataframe(df_hist, use_container_width=True, hide_index=True)
 
-    # --- PESTAÑA 5: CONTROL TE (CON UNICAMENTE 2 OPCIONES DE FILTRO) ---
+            # --- SECCIÓN DE ELIMINACIÓN DE HISTORIAL (1X1 Y COMPLETO) ---
+            if es_angel and not df_hist_raw.empty:
+                st.markdown("---")
+                st.subheader("🗑️ Opciones de Eliminación de Historial")
+
+                col_del_single, col_del_all = st.columns(2)
+
+                # Opción 1: Eliminar Registro 1x1
+                with col_del_single:
+                    st.markdown("##### 📌 Eliminar Registro Individual (1x1)")
+                    opciones_reg = [
+                        f"ID {r['id']} | {r['solicitante']} | {r['fechas']} ({r['estado']})"
+                        for _, r in df_hist_raw.iterrows()
+                    ]
+                    reg_sel = st.selectbox(
+                        "Selecciona el registro a borrar:",
+                        options=["-- Seleccionar --"] + opciones_reg,
+                        key="sb_del_hist_single",
+                    )
+
+                    if st.button(
+                        "🗑️ Eliminar Registro Seleccionado",
+                        type="secondary",
+                        use_container_width=True,
+                    ):
+                        if reg_sel != "-- Seleccionar --":
+                            id_target = int(reg_sel.split("ID ")[1].split(" |")[0].strip())
+                            conn = sqlite3.connect(DB_NAME)
+                            cursor = conn.cursor()
+                            cursor.execute("DELETE FROM solicitudes_vacaciones WHERE id = ?", (id_target,))
+                            conn.commit()
+                            conn.close()
+                            st.success(f"¡Registro ID {id_target} eliminado exitosamente!")
+                            st.rerun()
+                        else:
+                            st.warning("Selecciona un registro válido de la lista.")
+
+                # Opción 2: Eliminar Historial Completo
+                with col_del_all:
+                    st.markdown("##### ⚠️ Eliminar Historial Completo")
+                    confirmar_borrado_total = st.checkbox(
+                        "Confirmar que deseas VACIAR TODO EL HISTORIAL",
+                        key="chk_confirm_del_all_hist",
+                    )
+                    if st.button(
+                        "🔥 Vaciar Historial Completo",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        if confirmar_borrado_total:
+                            conn = sqlite3.connect(DB_NAME)
+                            cursor = conn.cursor()
+                            cursor.execute("DELETE FROM solicitudes_vacaciones")
+                            conn.commit()
+                            conn.close()
+                            st.success("¡Todo el historial de solicitudes fue eliminado permanentemente!")
+                            st.rerun()
+                        else:
+                            st.error("Por favor, marca la casilla de confirmación para proceder con el vaciado total.")
+
+    # --- PESTAÑA 5: CONTROL TE ---
     if es_autorizado_especial and "Control TE" in pestanias:
         idx_te = pestanias.index("Control TE")
         with tab_actual[idx_te]:
             st.subheader("⏱️ CONTROL Y ACUMULADO DE TIEMPO EXTRA (TE)")
 
-            # Bloque Informativo Azul
             st.info(
                 "**Cálculo automático basado en el Rol de Asistencia:** "
                 "Se considera como Tiempo Extra todos los días laborados (`DIA` / `NOCHE`) "
@@ -876,7 +936,6 @@ else:
                 "programados originalmente con vacaciones pero trabajados)."
             )
 
-            # Selector de Modo de Cálculo (SOLO 2 OPCIONES)
             modo_calculo = st.selectbox(
                 "Filtrar por modo de cálculo:",
                 [
@@ -905,14 +964,12 @@ else:
             conn.close()
 
             if not df_rol_all.empty:
-                # Identificación de turnos laborados
                 df_rol_all["es_laborado"] = df_rol_all["turno"].apply(
                     lambda t: 1
                     if str(t).upper().strip() in ["DIA", "NOCHE", "🟩 DIA", "🟦 NOCHE"]
                     else 0
                 )
 
-                # Filtrado si se seleccionó calendario
                 if modo_calculo == "Días (seleccionar en calendario)":
                     if isinstance(rango_fechas_sel, (list, tuple)) and len(rango_fechas_sel) == 2:
                         f_inicio, f_fin = rango_fechas_sel
@@ -963,7 +1020,6 @@ else:
                 st.info("No hay turnos capturados en el Rol de Asistencia.")
                 df_graf = pd.DataFrame()
 
-            # --- RENDERING DE LA GRÁFICA MULTICOLOR ---
             if not df_graf.empty:
                 st.markdown("---")
                 st.subheader("📈 Gráfica de Colaboradores con más Tiempo Extra")
@@ -993,7 +1049,7 @@ else:
 
                 st.plotly_chart(fig, use_container_width=True)
 
-    # --- PESTAÑA 6: GESTIÓN DE USUARIOS (EXCLUSIVO ANGEL CON OPCIÓN DE ELIMINAR) ---
+    # --- PESTAÑA 6: GESTIÓN DE USUARIOS ---
     if es_angel and "Gestión Usuarios" in pestanias:
         idx_users = pestanias.index("Gestión Usuarios")
         with tab_actual[idx_users]:
@@ -1003,7 +1059,6 @@ else:
             df_users = pd.read_sql("SELECT id, nomina, nombre, rol, password FROM usuarios", conn)
             conn.close()
 
-            # Editor interactivo con num_rows="dynamic" para permitir agregar/eliminar
             df_users_edit = st.data_editor(
                 df_users,
                 key="editor_usuarios_angel",
@@ -1019,15 +1074,12 @@ else:
                     conn = sqlite3.connect(DB_NAME)
                     cursor = conn.cursor()
 
-                    # IDs persistentes tras la edición
                     ids_actuales = df_users_edit["id"].dropna().tolist()
 
-                    # Eliminar registros que fueron removidos de la tabla
                     if ids_actuales:
                         placeholders = ",".join(["?"] * len(ids_actuales))
                         cursor.execute(f"DELETE FROM usuarios WHERE id NOT IN ({placeholders})", ids_actuales)
 
-                    # Actualizar o insertar registros
                     for index, row in df_users_edit.iterrows():
                         if pd.notna(row["id"]):
                             cursor.execute(
