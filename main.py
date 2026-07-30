@@ -118,6 +118,31 @@ def init_db():
 init_db()
 
 # ----------------------------------------------------------------------
+# FUNCIONES AUXILIARES DE TURNO
+# ----------------------------------------------------------------------
+def formatear_turno_vista(val):
+    val_clean = str(val).strip().upper()
+    if val_clean == "DIA":
+        return "🟩 DIA"
+    elif val_clean == "NOCHE":
+        return "🟦 NOCHE"
+    elif val_clean in ["V", "VACACIONES"]:
+        return "🟨 V"
+    return "-"
+
+
+def limpiar_turno_bd(val):
+    val_str = str(val).upper()
+    if "DIA" in val_str:
+        return "DIA"
+    elif "NOCHE" in val_str:
+        return "NOCHE"
+    elif "V" in val_str:
+        return "V"
+    return "-"
+
+
+# ----------------------------------------------------------------------
 # CONFIGURACIÓN DE PÁGINA Y SESIÓN
 # ----------------------------------------------------------------------
 st.set_page_config(
@@ -267,10 +292,11 @@ else:
 
     tab_actual = st.tabs(pestanias)
 
-    # --- PESTAÑA 1: ROL DE ASISTENCIA (TABLA ORIGINAL CON BADGES DE COLOR VISIBLES) ---
+    # --- PESTAÑA 1: ROL DE ASISTENCIA (CON BUSCADOR Y TARJETA INDIVIDUAL) ---
     with tab_actual[0]:
         st.subheader("Tabla de Asistencia")
 
+        # NAVEGACIÓN DE FECHAS
         col_atras, col_fecha, col_adelante = st.columns([1, 2, 1])
         with col_atras:
             if st.button("◀ Semana Anterior", use_container_width=True):
@@ -298,11 +324,65 @@ else:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute("SELECT nombre FROM usuarios ORDER BY nombre ASC")
-        empleados = [r[0] for r in cursor.fetchall()]
+        todos_empleados = [r[0] for r in cursor.fetchall()]
+
+        es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
+        usuario_actual = st.session_state.usuario
+
+        # VISTA RESUMIDA INDIVIDUAL AL INICIAR SESIÓN (PARA OPERADOR)
+        if not es_admin:
+            st.markdown(f"### 👋 Hola, **{usuario_actual}**")
+            st.markdown("##### Tus turnos programados para esta semana:")
+
+            dias_fechas = [
+                (lunes + dt.timedelta(days=i)).strftime("%Y-%m-%d")
+                for i in range(7)
+            ]
+            nombres_dias_abrev = [
+                "Lunes",
+                "Martes",
+                "Miércoles",
+                "Jueves",
+                "Viernes",
+                "Sábado",
+                "Domingo",
+            ]
+
+            cols_turnos = st.columns(7)
+            for i, f_str in enumerate(dias_fechas):
+                cursor.execute(
+                    "SELECT turno FROM rol_asistencia WHERE (nombre=? OR"
+                    " empleado=?) AND fecha=?",
+                    (usuario_actual, usuario_actual, f_str),
+                )
+                res = cursor.fetchone()
+                val_bd = res[0] if res and res[0] else "-"
+
+                with cols_turnos[i]:
+                    fecha_fmt = (lunes + dt.timedelta(days=i)).strftime("%d/%m")
+                    st.metric(
+                        label=f"{nombres_dias_abrev[i]} {fecha_fmt}",
+                        value=formatear_turno_vista(val_bd),
+                    )
+
+            st.markdown("---")
+
+        # BUSCADOR / FILTRO POR EMPLEADO
+        col_filtro, _ = st.columns([2, 2])
+        with col_filtro:
+            empleado_filtrado = st.selectbox(
+                "🔍 Buscar o filtrar por empleado:",
+                options=["-- Mostrar Todos --"] + todos_empleados,
+                index=0,
+            )
+
+        if empleado_filtrado != "-- Mostrar Todos --":
+            empleados_a_mostrar = [empleado_filtrado]
+        else:
+            empleados_a_mostrar = todos_empleados
 
         dias_fechas = [
-            (lunes + dt.timedelta(days=i)).strftime("%Y-%m-%d")
-            for i in range(7)
+            (lunes + dt.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)
         ]
         nombres_dias_abrev = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
         encabezados = ["Empleado"] + [
@@ -310,29 +390,8 @@ else:
             for i in range(7)
         ]
 
-        # Funciones auxiliares para visualización e ingreso de datos
-        def formatear_turno_vista(val):
-            val_clean = str(val).strip().upper()
-            if val_clean == "DIA":
-                return "🟩 DIA"
-            elif val_clean == "NOCHE":
-                return "🟦 NOCHE"
-            elif val_clean in ["V", "VACACIONES"]:
-                return "🟨 V"
-            return "-"
-
-        def limpiar_turno_bd(val):
-            val_str = str(val).upper()
-            if "DIA" in val_str:
-                return "DIA"
-            elif "NOCHE" in val_str:
-                return "NOCHE"
-            elif "V" in val_str:
-                return "V"
-            return "-"
-
         tabla_datos = []
-        for emp in empleados:
+        for emp in empleados_a_mostrar:
             fila = [emp]
             for f_str in dias_fechas:
                 cursor.execute(
@@ -348,7 +407,6 @@ else:
 
         df_rol = pd.DataFrame(tabla_datos, columns=encabezados)
 
-        es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
         opciones_turnos = ["-", "🟩 DIA", "🟦 NOCHE", "🟨 V", "DESCANSO"]
 
         config_cols = {
