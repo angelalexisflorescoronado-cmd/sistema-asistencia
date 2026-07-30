@@ -1008,7 +1008,7 @@ else:
 
                 st.plotly_chart(fig, use_container_width=True)
 
-    # --- PESTAÑA 6: GESTIÓN DE USUARIOS (EXCLUSIVO ANGEL) ---
+    # --- PESTAÑA 6: GESTIÓN DE USUARIOS (EXCLUSIVO ANGEL CON OPCIÓN DE ELIMINAR) ---
     if es_angel and "Gestión Usuarios" in pestanias:
         idx_users = pestanias.index("Gestión Usuarios")
         with tab_actual[idx_users]:
@@ -1018,27 +1018,79 @@ else:
             df_users = pd.read_sql("SELECT id, nomina, nombre, rol, password FROM usuarios", conn)
             conn.close()
 
+            # Editor interactivo con num_rows="dynamic" para permitir agregar/eliminar
             df_users_edit = st.data_editor(
                 df_users,
                 key="editor_usuarios_angel",
                 disabled=["id"],
+                num_rows="dynamic",
                 use_container_width=True,
                 hide_index=True,
             )
 
-            if st.button("💾 Guardar Cambios de Usuarios", type="primary"):
-                conn = sqlite3.connect(DB_NAME)
-                cursor = conn.cursor()
-                for index, row in df_users_edit.iterrows():
-                    cursor.execute(
-                        """
-                        UPDATE usuarios
-                        SET nomina = ?, nombre = ?, rol = ?, password = ?
-                        WHERE id = ?
-                    """,
-                        (row["nomina"], row["nombre"], row["rol"], row["password"], row["id"]),
-                    )
-                conn.commit()
-                conn.close()
-                st.success("¡Base de datos de usuarios actualizada!")
-                st.rerun()
+            col_guardar, _ = st.columns([2, 2])
+            with col_guardar:
+                if st.button("💾 Guardar Cambios de Usuarios", type="primary", use_container_width=True):
+                    conn = sqlite3.connect(DB_NAME)
+                    cursor = conn.cursor()
+                    
+                    # IDs persistentes tras la edición
+                    ids_actuales = df_users_edit["id"].dropna().tolist()
+                    
+                    # Eliminar registros que fueron removidos de la tabla
+                    if ids_actuales:
+                        placeholders = ",".join(["?"] * len(ids_actuales))
+                        cursor.execute(f"DELETE FROM usuarios WHERE id NOT IN ({placeholders})", ids_actuales)
+                    
+                    # Actualizar o insertar registros
+                    for index, row in df_users_edit.iterrows():
+                        if pd.notna(row["id"]):
+                            cursor.execute(
+                                """
+                                UPDATE usuarios
+                                SET nomina = ?, nombre = ?, rol = ?, password = ?
+                                WHERE id = ?
+                            """,
+                                (row["nomina"], row["nombre"], row["rol"], row["password"], row["id"]),
+                            )
+                        else:
+                            cursor.execute(
+                                """
+                                INSERT INTO usuarios (nomina, nombre, rol, password)
+                                VALUES (?, ?, ?, ?)
+                            """,
+                                (row["nomina"], row["nombre"], row["rol"], row["password"]),
+                            )
+                    conn.commit()
+                    conn.close()
+                    st.success("¡Base de datos de usuarios actualizada!")
+                    st.rerun()
+
+            st.markdown("---")
+            st.subheader("🗑️ Eliminar Usuario Específico")
+            
+            col_del1, col_del2 = st.columns([3, 1])
+            with col_del1:
+                opciones_eliminar = [
+                    f"{r['nomina']} - {r['nombre']}" for _, r in df_users.iterrows()
+                ]
+                usuario_a_eliminar = st.selectbox(
+                    "Selecciona el usuario que deseas eliminar:",
+                    options=["-- Seleccionar --"] + opciones_eliminar,
+                )
+            
+            with col_del2:
+                st.write("")
+                st.write("")
+                if st.button("🗑️ Eliminar Usuario", type="secondary", use_container_width=True):
+                    if usuario_a_eliminar != "-- Seleccionar --":
+                        nomina_target = usuario_a_eliminar.split(" - ")[0].strip()
+                        conn = sqlite3.connect(DB_NAME)
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM usuarios WHERE nomina = ?", (nomina_target,))
+                        conn.commit()
+                        conn.close()
+                        st.success(f"¡Usuario con nómina {nomina_target} eliminado con éxito!")
+                        st.rerun()
+                    else:
+                        st.warning("Selecciona un usuario válido para eliminar.")
