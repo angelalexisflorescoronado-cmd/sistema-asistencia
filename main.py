@@ -64,12 +64,23 @@ def init_db():
                 (nom, nombre, rol, pwd),
             )
     else:
-        # Asegurar contraseña y datos actualizados para Angel Flores en bases existentes
+        # Forzar actualización asegurando nómina, contraseña y rol correcto para Angel Flores
         cursor.execute(
             """
-            UPDATE usuarios SET password = 'Alex1996' WHERE nomina = '10035253'
+            UPDATE usuarios 
+            SET nomina = '10035253', password = 'Alex1996', rol = 'ADMIN_USUARIOS' 
+            WHERE nombre = 'ANGEL FLORES'
         """
         )
+        # Si por alguna razón no existía con ese nombre exacto, lo inserta
+        cursor.execute("SELECT COUNT(*) FROM usuarios WHERE nombre = 'ANGEL FLORES'")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute(
+                """
+                INSERT INTO usuarios (nomina, nombre, rol, password) 
+                VALUES ('10035253', 'ANGEL FLORES', 'ADMIN_USUARIOS', 'Alex1996')
+            """
+            )
 
     try:
         cursor.execute(
