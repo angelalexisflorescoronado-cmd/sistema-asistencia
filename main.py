@@ -327,6 +327,10 @@ else:
     # --- PESTAÑA 1: ROL DE ASISTENCIA (DOMINGO A DOMINGO) ---
     with tab_actual[0]:
         st.subheader("Tabla de Asistencia")
+        st.info(
+            "💡 **Tip:** Puedes editar la numeración en la columna `id` para"
+            " reordenar los registros directamente desde aquí."
+        )
 
         col_atras, col_fecha, col_adelante = st.columns([1, 2, 1])
         with col_atras:
@@ -348,16 +352,16 @@ else:
         )
         domingo_fin = domingo_inicio + dt.timedelta(days=7)
 
-        st.info(
+        st.markdown(
             f"📅 Semana del **{domingo_inicio.strftime('%d/%m/%Y')}** al"
             f" **{domingo_fin.strftime('%d/%m/%Y')}**"
         )
 
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
-        # Sincronización estricta respetando el orden por ID configurado en Administración de Usuarios
-        cursor.execute("SELECT nombre FROM usuarios ORDER BY id ASC")
-        todos_empleados = [r[0] for r in cursor.fetchall()]
+        cursor.execute("SELECT id, nombre FROM usuarios ORDER BY id ASC")
+        usuarios_db = cursor.fetchall()
+        todos_empleados = [r[1] for r in usuarios_db]
 
         es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
         usuario_actual = st.session_state.usuario
@@ -425,17 +429,22 @@ else:
             )
 
         if empleados_seleccionados:
-            empleados_a_mostrar = empleados_seleccionados
+            # Filtrar usuarios respetando sus IDs originales
+            mapa_usuarios = {nombre: uid for uid, nombre in usuarios_db}
+            empleados_a_mostrar = [
+                (mapa_usuarios[emp], emp) for emp in empleados_seleccionados
+            ]
         else:
-            empleados_a_mostrar = todos_empleados
-        encabezados = ["Empleado"] + [
+            empleados_a_mostrar = usuarios_db
+
+        encabezados = ["id", "Empleado"] + [
             f"{nombres_dias_abrev[i]} {(domingo_inicio + dt.timedelta(days=i)).strftime('%d/%m')}"
             for i in range(8)
         ]
 
         tabla_datos = []
-        for emp in empleados_a_mostrar:
-            fila = [emp]
+        for uid, emp in empleados_a_mostrar:
+            fila = [uid, emp]
             partes_emp = emp.replace(",", "").split()
             posibles_emp = [emp]
             if len(partes_emp) >= 2:
@@ -462,9 +471,12 @@ else:
         opciones_turnos = ["-", "🟩 DIA", "🟦 NOCHE", "🟨 V", "DESCANSO"]
 
         config_cols = {
-            "Empleado": st.column_config.TextColumn("Empleado", disabled=True)
+            "id": st.column_config.NumberColumn(
+                "id", format="%d", required=True, disabled=not es_admin
+            ),
+            "Empleado": st.column_config.TextColumn("Empleado", disabled=True),
         }
-        for col in encabezados[1:]:
+        for col in encabezados[2:]:
             config_cols[col] = st.column_config.SelectboxColumn(
                 col,
                 options=opciones_turnos,
@@ -476,7 +488,7 @@ else:
             df_rol,
             column_config=config_cols,
             use_container_width=True,
-            hide_index=False,
+            hide_index=True,
             key="editor_turnos_captura_izquierda",
         )
 
@@ -486,9 +498,17 @@ else:
                 cursor = conn.cursor()
 
                 for idx, row in df_editado.iterrows():
+                    nuevo_id = int(row["id"])
                     emp = row["Empleado"]
+
+                    # Actualizar ID / orden del usuario en la base de datos
+                    cursor.execute(
+                        "UPDATE usuarios SET id = ? WHERE nombre = ?",
+                        (nuevo_id, emp),
+                    )
+
                     for i, f_str in enumerate(dias_fechas):
-                        val_pantalla = row[encabezados[i + 1]]
+                        val_pantalla = row[encabezados[i + 2]]
                         nuevo_turno = limpiar_turno_bd(val_pantalla)
 
                         cursor.execute(
@@ -502,7 +522,10 @@ else:
 
                 conn.commit()
                 conn.close()
-                st.success("¡Todos los turnos se guardaron con éxito!")
+                st.success(
+                    "¡Numeración, orden y turnos guardados y sincronizados con"
+                    " éxito!"
+                )
                 st.rerun()
 
     # --- PESTAÑA 2: SOLICITAR VACACIONES ---
@@ -1117,7 +1140,7 @@ else:
 
                 st.plotly_chart(fig, use_container_width=True)
 
-    # --- PESTAÑA 6: GESTIÓN DE USUARIOS (CON NUMERACIÓN EDITABLE) ---
+    # --- PESTAÑA 6: GESTIÓN DE USUARIOS ---
     if es_angel and "Gestión Usuarios" in pestanias:
         idx_users = pestanias.index("Gestión Usuarios")
         with tab_actual[idx_users]:
@@ -1125,8 +1148,7 @@ else:
             st.info(
                 "💡 **Tip:** Puedes editar directamente la columna de"
                 " numeración (`id`) en la tabla para ordenar y numerar a los"
-                " usuarios a tu preferencia. Los cambios se reflejarán"
-                " automáticamente en la **Tabla de Asistencia**."
+                " usuarios a tu preferencia."
             )
 
             conn = sqlite3.connect(DB_NAME)
@@ -1218,7 +1240,7 @@ else:
                     conn.close()
                     st.success(
                         "¡Base de datos de usuarios y numeración actualizados"
-                        " con éxito! Se reflejará en la Tabla de Asistencia."
+                        " con éxito!"
                     )
                     st.rerun()
 
