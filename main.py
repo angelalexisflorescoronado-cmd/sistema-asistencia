@@ -341,7 +341,8 @@ else:
 
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
-        cursor.execute("SELECT nombre FROM usuarios ORDER BY nombre ASC")
+        # SE MODIFICÓ AQUÍ PARA RESPETAR EL ORDEN EXACTO POR ID (IGUAL QUE EN GESTIÓN DE USUARIOS)
+        cursor.execute("SELECT nombre FROM usuarios ORDER BY id ASC")
         todos_empleados = [r[0] for r in cursor.fetchall()]
 
         es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
