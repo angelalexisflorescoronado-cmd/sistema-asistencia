@@ -21,48 +21,56 @@ def init_db():
             nomina TEXT DEFAULT '',
             nombre TEXT UNIQUE NOT NULL,
             rol TEXT NOT NULL DEFAULT 'OPERADOR',
-            password TEXT NOT NULL DEFAULT '1234'
+            password TEXT NOT NULL DEFAULT '1234',
+            orden INTEGER DEFAULT 99
         )
     """)
 
-    try:
-        cursor.execute("ALTER TABLE usuarios ADD COLUMN nomina TEXT DEFAULT ''")
-    except sqlite3.OperationalError:
-        pass
+    # Agregar columnas si venimos de versiones anteriores
+    for col_query in [
+        "ALTER TABLE usuarios ADD COLUMN nomina TEXT DEFAULT ''",
+        "ALTER TABLE usuarios ADD COLUMN orden INTEGER DEFAULT 99"
+    ]:
+        try:
+            cursor.execute(col_query)
+        except sqlite3.OperationalError:
+            pass
 
+    # Lista base con tu orden exacto (se añade un número de orden al final de cada tupla)
     usuarios_base = [
-        ("10031976", "JIMENEZ, LUIS RAUL", "OPERADOR", "1234"),
-        ("10015510", "PEREZ, RAYMUNDO", "OPERADOR", "1234"),
-        ("10016085", "SALVADOR, ERNESTO", "OPERADOR", "1234"),
-        ("10019675", "RIVERA, RIGOBERTO", "OPERADOR", "1234"),
-        ("10139954", "OSCAR GARCIA HERNANDEZ", "OPERADOR", "1234"),
-        ("10007219", "LUIS ANGEL PEREZ", "OPERADOR", "1234"),
-        ("10018255", "SERNA, ORLANDO", "OPERADOR", "1234"),
-        ("10005881", "SANTOS GUTIERREZ", "OPERADOR", "1234"),
-        ("10019578", "LOREDO, JESUS", "OPERADOR", "1234"),
-        ("10022967", "SANTIAGO, RICARDO", "OPERADOR", "1234"),
-        ("10005894", "ZARAGOZA, GILBERTO", "OPERADOR", "1234"),
-        ("10092630", "JUAN CARLOS", "OPERADOR", "1234"),
-        ("10076145", "HERNANDEZ, OSCAR", "OPERADOR", "1234"),
-        ("10004365", "BENITO, OSCAR", "OPERADOR", "1234"),
-        ("10023526", "MARIA DOREYDA PEREZ", "OPERADOR", "1234"),
-        ("10019258", "ANTONIO, ROBERTO", "OPERADOR", "1234"),
-        ("10015453", "PORTILLO, JOSE JUAN", "OPERADOR", "1234"),
-        ("10035253", "ANGEL FLORES", "ADMIN_USUARIOS", "1234"),
-        ("10003693", "ALEJANDRO GUARDA", "ADMIN_ROL", "1234"),
-        ("10215435", "DONATO BACCO", "ADMIN_ROL", "1234"),
+        ("10031976", "JIMENEZ, LUIS RAUL", "OPERADOR", "1234", 1),
+        ("10015510", "PEREZ, RAYMUNDO", "OPERADOR", "1234", 2),
+        ("10016085", "SALVADOR, ERNESTO", "OPERADOR", "1234", 3),
+        ("10019675", "RIVERA, RIGOBERTO", "OPERADOR", "1234", 4),
+        ("10139954", "OSCAR GARCIA HERNANDEZ", "OPERADOR", "1234", 5),
+        ("10007219", "LUIS ANGEL PEREZ", "OPERADOR", "1234", 6),
+        ("10018255", "SERNA, ORLANDO", "OPERADOR", "1234", 7),
+        ("10005881", "SANTOS GUTIERREZ", "OPERADOR", "1234", 8),
+        ("10019578", "LOREDO, JESUS", "OPERADOR", "1234", 9),
+        ("10022967", "SANTIAGO, RICARDO", "OPERADOR", "1234", 10),
+        ("10005894", "ZARAGOZA, GILBERTO", "OPERADOR", "1234", 11),
+        ("10092630", "JUAN CARLOS", "OPERADOR", "1234", 12),
+        ("10076145", "HERNANDEZ, OSCAR", "OPERADOR", "1234", 13),
+        ("10004365", "BENITO, OSCAR", "OPERADOR", "1234", 14),
+        ("10023526", "MARIA DOREYDA PEREZ", "OPERADOR", "1234", 15),
+        ("10019258", "ANTONIO, ROBERTO", "OPERADOR", "1234", 16),
+        ("10015453", "PORTILLO, JOSE JUAN", "OPERADOR", "1234", 17),
+        ("10003693", "ALEJANDRO GUARDA", "ADMIN_ROL", "1234", 18),
+        ("10035253", "ANGEL FLORES", "ADMIN_USUARIOS", "1234", 19),
+        ("10215435", "DONATO BACCO", "ADMIN_ROL", "1234", 20),
     ]
 
-    for nom, nombre, rol, pwd in usuarios_base:
+    for nom, nombre, rol, pwd, orden in usuarios_base:
         cursor.execute(
             """
-            INSERT INTO usuarios (nomina, nombre, rol, password) 
-            VALUES (?, ?, ?, ?)
+            INSERT INTO usuarios (nomina, nombre, rol, password, orden) 
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(nombre) DO UPDATE SET 
                 nomina=excluded.nomina,
-                rol=excluded.rol
+                rol=excluded.rol,
+                orden=excluded.orden
         """,
-            (nom, nombre, rol, pwd),
+            (nom, nombre, rol, pwd, orden),
         )
 
     try:
@@ -339,7 +347,7 @@ else:
 
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
-        cursor.execute("SELECT nombre FROM usuarios ORDER BY nombre ASC")
+        cursor.execute("SELECT nombre FROM usuarios ORDER BY orden ASC")
         todos_empleados = [r[0] for r in cursor.fetchall()]
 
         es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
@@ -1058,7 +1066,7 @@ else:
             st.subheader("⚙️ Administración de Usuarios")
 
             conn = sqlite3.connect(DB_NAME)
-            df_users = pd.read_sql("SELECT id, nomina, nombre, rol, password FROM usuarios", conn)
+            df_users = pd.read_sql("SELECT id, nomina, nombre, rol, orden FROM usuarios ORDER BY orden ASC", conn)
             conn.close()
 
             df_users_edit = st.data_editor(
