@@ -31,36 +31,40 @@ def init_db():
         pass
 
     usuarios_base = [
-        ("10031976", "JIMENEZ, LUIS RAUL", "OPERADOR", "1234"),
-        ("10015510", "PEREZ, RAYMUNDO", "OPERADOR", "1234"),
-        ("10016085", "SALVADOR, ERNESTO", "OPERADOR", "1234"),
-        ("10019675", "RIVERA, RIGOBERTO", "OPERADOR", "1234"),
+        ("10031976", "LUIS RAUL JIMENEZ", "OPERADOR", "1234"),
+        ("10015510", "RAYMUNDO PEREZ", "OPERADOR", "1234"),
+        ("10016085", "ERNESTO SALVADOR", "OPERADOR", "1234"),
+        ("10019675", "RIGOBERTO RIVERA", "OPERADOR", "1234"),
         ("10139954", "OSCAR GARCIA HERNANDEZ", "OPERADOR", "1234"),
         ("10007219", "LUIS ANGEL PEREZ", "OPERADOR", "1234"),
-        ("10018255", "SERNA, ORLANDO", "OPERADOR", "1234"),
+        ("10018255", "ORLANDO SERNA", "OPERADOR", "1234"),
         ("10005881", "SANTOS GUTIERREZ", "OPERADOR", "1234"),
-        ("10019578", "LOREDO, JESUS", "OPERADOR", "1234"),
-        ("10022967", "SANTIAGO, RICARDO", "OPERADOR", "1234"),
-        ("10005894", "ZARAGOZA, GILBERTO", "OPERADOR", "1234"),
+        ("10019578", "JESUS LOREDO", "OPERADOR", "1234"),
+        ("10022967", "RICARDO SANTIAGO", "OPERADOR", "1234"),
+        ("10005894", "GILBERTO ZARAGOZA", "OPERADOR", "1234"),
         ("10092630", "JUAN CARLOS", "OPERADOR", "1234"),
-        ("10076145", "HERNANDEZ, OSCAR", "OPERADOR", "1234"),
-        ("10004365", "BENITO, OSCAR", "OPERADOR", "1234"),
+        ("10076145", "OSCAR HERNANDEZ", "OPERADOR", "1234"),
+        ("10004365", "OSCAR BENITO", "OPERADOR", "1234"),
         ("10023526", "MARIA DOREYDA PEREZ", "OPERADOR", "1234"),
-        ("10019258", "ANTONIO, ROBERTO", "OPERADOR", "1234"),
-        ("10015453", "PORTILLO, JOSE JUAN", "OPERADOR", "1234"),
+        ("10019258", "ROBERTO ANTONIO", "OPERADOR", "1234"),
+        ("10015453", "JOSE JUAN PORTILLO", "OPERADOR", "1234"),
         ("10035253", "ANGEL FLORES", "ADMIN_USUARIOS", "1234"),
         ("10003693", "ALEJANDRO GUARDA", "ADMIN_ROL", "1234"),
         ("10215435", "DONATO BACCO", "ADMIN_ROL", "1234"),
     ]
+
+    # Sincronizar y asegurar el orden exacto y único de los usuarios especificados
+    cursor.execute("DELETE FROM usuarios")
+    try:
+        cursor.execute("DELETE FROM sqlite_sequence WHERE name='usuarios'")
+    except sqlite3.OperationalError:
+        pass
 
     for nom, nombre, rol, pwd in usuarios_base:
         cursor.execute(
             """
             INSERT INTO usuarios (nomina, nombre, rol, password) 
             VALUES (?, ?, ?, ?)
-            ON CONFLICT(nombre) DO UPDATE SET 
-                nomina=excluded.nomina,
-                rol=excluded.rol
         """,
             (nom, nombre, rol, pwd),
         )
@@ -340,7 +344,6 @@ else:
 
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
-        # Se recuperan los empleados respetando el orden personalizado de la BD
         cursor.execute("SELECT nombre FROM usuarios ORDER BY id ASC")
         todos_empleados = [r[0] for r in cursor.fetchall()]
 
@@ -954,7 +957,7 @@ else:
                             conn.close()
                             st.success(
                                 "¡Todo el historial fue eliminado y el"
-                                " contador de ID ha sido reiniciado a 1!"
+                                " contador de ID ha sido reiniciado al 1!"
                             )
                             st.rerun()
                         else:
@@ -1140,7 +1143,6 @@ else:
                     conn = sqlite3.connect(DB_NAME)
                     cursor = conn.cursor()
 
-                    # Reemplazar la tabla manteniendo el nuevo orden definido por el usuario al arrastrar filas
                     cursor.execute("DELETE FROM usuarios")
                     try:
                         cursor.execute(
