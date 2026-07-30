@@ -340,6 +340,7 @@ else:
 
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
+        # Se recuperan los empleados respetando el orden personalizado de la BD
         cursor.execute("SELECT nombre FROM usuarios ORDER BY id ASC")
         todos_empleados = [r[0] for r in cursor.fetchall()]
 
@@ -1108,12 +1109,15 @@ else:
             st.subheader("⚙️ Administración de Usuarios")
             st.info(
                 "💡 **Tip:** Puedes arrastrar las filas desde el selector"
-                " izquierdo para cambiar el orden de los usuarios."
+                " izquierdo para cambiar el orden de los usuarios. Este nuevo"
+                " orden se actualizará automáticamente en la **Tabla de"
+                " Asistencia**."
             )
 
             conn = sqlite3.connect(DB_NAME)
             df_users = pd.read_sql(
-                "SELECT id, nomina, nombre, rol, password FROM usuarios", conn
+                "SELECT id, nomina, nombre, rol, password FROM usuarios ORDER BY id ASC",
+                conn,
             )
             conn.close()
 
@@ -1163,7 +1167,7 @@ else:
                     conn.close()
                     st.success(
                         "¡Base de datos de usuarios y orden actualizados con"
-                        " éxito!"
+                        " éxito! Se reflejará en la Tabla de Asistencia."
                     )
                     st.rerun()
 
