@@ -365,8 +365,8 @@ else:
                 return "background-color: #000000; color: #000000;"
             return ""
 
-        # Aplicar formato de celda mediante Styler
-        styler = df_rol.style.applymap(aplicar_estilos_turnos, subset=encabezados[1:])
+        # SE USA .map(...) EN LUGAR DE .applymap(...) COMPATIBLE CON PANDAS 2.1+
+        styler = df_rol.style.map(aplicar_estilos_turnos, subset=encabezados[1:])
         styler.set_table_attributes('class="tabla-rol-color"')
         
         # Renderizar vista coloreada principal
