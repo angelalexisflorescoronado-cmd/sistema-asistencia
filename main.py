@@ -862,7 +862,7 @@ else:
                 else:
                     st.dataframe(df_hist, use_container_width=True, hide_index=True)
 
-    # --- PESTAÑA 5: CONTROL TE (TIEMPO EXTRA CON VISTA SEGÚN CAPTURA) ---
+    # --- PESTAÑA 5: CONTROL TE (CON UNICAMENTE 2 OPCIONES DE FILTRO) ---
     if es_autorizado_especial and "Control TE" in pestanias:
         idx_te = pestanias.index("Control TE")
         with tab_actual[idx_te]:
@@ -876,107 +876,92 @@ else:
                 "programados originalmente con vacaciones pero trabajados)."
             )
 
-            # Selector de Modo de Cálculo
+            # Selector de Modo de Cálculo (SOLO 2 OPCIONES)
             modo_calculo = st.selectbox(
                 "Filtrar por modo de cálculo:",
                 [
                     "Histórico Acumulado General",
-                    "Semana Actual",
-                    "Registros Manuales Directos",
+                    "Días (seleccionar en calendario)",
                 ],
             )
+
+            rango_fechas_sel = None
+            if modo_calculo == "Días (seleccionar en calendario)":
+                col_c1, _ = st.columns([2, 2])
+                with col_c1:
+                    rango_fechas_sel = st.date_input(
+                        "Selecciona el rango de días en el calendario:",
+                        value=[dt.date.today() - dt.timedelta(days=7), dt.date.today()],
+                    )
 
             st.markdown("---")
             st.subheader("📊 Resumen de Días de Tiempo Extra")
 
             conn = sqlite3.connect(DB_NAME)
+            df_rol_all = pd.read_sql(
+                "SELECT nombre AS Empleado, fecha, turno FROM rol_asistencia",
+                conn,
+            )
+            conn.close()
 
-            if modo_calculo == "Registros Manuales Directos":
-                df_te = pd.read_sql(
-                    """
-                    SELECT empleado AS Empleado, fecha AS Fecha, horas AS [Horas T.E.], motivo AS Motivo 
-                    FROM tiempo_extra 
-                    ORDER BY id DESC
-                """,
-                    conn,
+            if not df_rol_all.empty:
+                # Identificación de turnos laborados
+                df_rol_all["es_laborado"] = df_rol_all["turno"].apply(
+                    lambda t: 1
+                    if str(t).upper().strip() in ["DIA", "NOCHE", "🟩 DIA", "🟦 NOCHE"]
+                    else 0
                 )
-                conn.close()
 
-                if not df_te.empty:
-                    st.dataframe(
-                        df_te, use_container_width=True, hide_index=True
-                    )
-                    df_graf = (
-                        df_te.groupby("Empleado")["Horas T.E."]
-                        .sum()
-                        .reset_index()
-                    )
-                    y_col = "Horas T.E."
-                    y_label = "Total Horas T.E."
-                else:
-                    st.warning("No hay registros manuales de tiempo extra.")
-                    df_graf = pd.DataFrame()
-
-            else:
-                df_rol_all = pd.read_sql(
-                    "SELECT nombre AS Empleado, fecha, turno FROM rol_asistencia",
-                    conn,
-                )
-                conn.close()
-
-                if not df_rol_all.empty:
-                    # Identificación de turnos laborados
-                    df_rol_all["es_laborado"] = df_rol_all["turno"].apply(
-                        lambda t: 1
-                        if str(t).upper().strip() in ["DIA", "NOCHE", "🟩 DIA", "🟦 NOCHE"]
-                        else 0
-                    )
-
-                    if modo_calculo == "Semana Actual":
-                        lunes_str = lunes.strftime("%Y-%m-%d")
-                        domingo_str = domingo.strftime("%Y-%m-%d")
+                # Filtrado si se seleccionó calendario
+                if modo_calculo == "Días (seleccionar en calendario)":
+                    if isinstance(rango_fechas_sel, (list, tuple)) and len(rango_fechas_sel) == 2:
+                        f_inicio, f_fin = rango_fechas_sel
+                        f_ini_str = f_inicio.strftime("%Y-%m-%d")
+                        f_fin_str = f_fin.strftime("%Y-%m-%d")
                         df_rol_all = df_rol_all[
-                            (df_rol_all["fecha"] >= lunes_str)
-                            & (df_rol_all["fecha"] <= domingo_str)
+                            (df_rol_all["fecha"] >= f_ini_str)
+                            & (df_rol_all["fecha"] <= f_fin_str)
                         ]
-                        semana_label = f"{lunes.strftime('%Y-%m-%d')} al {domingo.strftime('%Y-%m-%d')}"
+                        rango_label = f"{f_inicio.strftime('%d/%m/%Y')} al {f_fin.strftime('%d/%m/%Y')}"
                     else:
-                        semana_label = f"{lunes.strftime('%Y-%m-%d')} al {domingo.strftime('%Y-%m-%d')}"
+                        rango_label = "Rango Seleccionado"
+                else:
+                    rango_label = "Histórico General"
 
-                    resumen_list = []
-                    for emp, grp in df_rol_all.groupby("Empleado"):
-                        dias_trabajados = grp["es_laborado"].sum()
-                        dias_te = max(0, dias_trabajados - 4)
-                        if dias_trabajados > 0:
-                            resumen_list.append(
-                                {
-                                    "Empleado": emp,
-                                    "Semana": semana_label,
-                                    "Días Trabajados": dias_trabajados,
-                                    "Días de T.E.": dias_te,
-                                }
-                            )
-
-                    df_resumen = pd.DataFrame(resumen_list)
-
-                    if not df_resumen.empty:
-                        st.dataframe(
-                            df_resumen,
-                            use_container_width=True,
-                            hide_index=True,
+                resumen_list = []
+                for emp, grp in df_rol_all.groupby("Empleado"):
+                    dias_trabajados = grp["es_laborado"].sum()
+                    dias_te = max(0, dias_trabajados - 4)
+                    if dias_trabajados > 0:
+                        resumen_list.append(
+                            {
+                                "Empleado": emp,
+                                "Periodo / Rango": rango_label,
+                                "Días Trabajados": dias_trabajados,
+                                "Días de T.E.": dias_te,
+                            }
                         )
 
-                        df_graf = df_resumen[df_resumen["Días de T.E."] > 0]
-                        if df_graf.empty:
-                            df_graf = df_resumen
-                        y_col = "Días de T.E."
-                        y_label = "Total Días T.E."
-                    else:
-                        st.info("No hay registros en el rango seleccionado.")
-                        df_graf = pd.DataFrame()
+                df_resumen = pd.DataFrame(resumen_list)
+
+                if not df_resumen.empty:
+                    st.dataframe(
+                        df_resumen,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+
+                    df_graf = df_resumen[df_resumen["Días de T.E."] > 0]
+                    if df_graf.empty:
+                        df_graf = df_resumen
+                    y_col = "Días de T.E."
+                    y_label = "Total Días T.E."
                 else:
-                    st.info("No hay turnos capturados en el Rol de Asistencia.")
+                    st.info("No hay registros de asistencia en el periodo seleccionado.")
                     df_graf = pd.DataFrame()
+            else:
+                st.info("No hay turnos capturados en el Rol de Asistencia.")
+                df_graf = pd.DataFrame()
 
             # --- RENDERING DE LA GRÁFICA MULTICOLOR ---
             if not df_graf.empty:
@@ -1033,15 +1018,15 @@ else:
                 if st.button("💾 Guardar Cambios de Usuarios", type="primary", use_container_width=True):
                     conn = sqlite3.connect(DB_NAME)
                     cursor = conn.cursor()
-                    
+
                     # IDs persistentes tras la edición
                     ids_actuales = df_users_edit["id"].dropna().tolist()
-                    
+
                     # Eliminar registros que fueron removidos de la tabla
                     if ids_actuales:
                         placeholders = ",".join(["?"] * len(ids_actuales))
                         cursor.execute(f"DELETE FROM usuarios WHERE id NOT IN ({placeholders})", ids_actuales)
-                    
+
                     # Actualizar o insertar registros
                     for index, row in df_users_edit.iterrows():
                         if pd.notna(row["id"]):
@@ -1068,7 +1053,7 @@ else:
 
             st.markdown("---")
             st.subheader("🗑️ Eliminar Usuario Específico")
-            
+
             col_del1, col_del2 = st.columns([3, 1])
             with col_del1:
                 opciones_eliminar = [
@@ -1078,7 +1063,7 @@ else:
                     "Selecciona el usuario que deseas eliminar:",
                     options=["-- Seleccionar --"] + opciones_eliminar,
                 )
-            
+
             with col_del2:
                 st.write("")
                 st.write("")
