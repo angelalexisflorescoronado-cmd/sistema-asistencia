@@ -194,7 +194,7 @@ if "fecha_ref" not in st.session_state:
 # MÓDULO DE LOGIN
 # ----------------------------------------------------------------------
 if not st.session_state.usuario:
-    st.title("📱 Control de Asistencia y Vacaciones")
+    st.title("📱 Core Process Espumado")
     st.subheader("Inicio de Sesión")
 
     nomina_input = st.text_input("Número de Nómina:").strip()
