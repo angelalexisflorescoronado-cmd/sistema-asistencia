@@ -429,7 +429,6 @@ else:
             )
 
         if empleados_seleccionados:
-            # Filtrar usuarios respetando sus IDs originales
             mapa_usuarios = {nombre: uid for uid, nombre in usuarios_db}
             empleados_a_mostrar = [
                 (mapa_usuarios[emp], emp) for emp in empleados_seleccionados
@@ -501,21 +500,34 @@ else:
                     nuevo_id = int(row["id"])
                     emp = row["Empleado"]
 
-                    # Actualizar ID / orden del usuario en la base de datos
                     cursor.execute(
                         "UPDATE usuarios SET id = ? WHERE nombre = ?",
                         (nuevo_id, emp),
                     )
 
+                    partes_emp = emp.replace(",", "").split()
+                    posibles_emp = [emp]
+                    if len(partes_emp) >= 2:
+                        posibles_emp.append(f"{partes_emp[-1]}, {partes_emp[0]}")
+                        posibles_emp.append(f"{partes_emp[1]}, {partes_emp[0]}")
+
                     for i, f_str in enumerate(dias_fechas):
                         val_pantalla = row[encabezados[i + 2]]
                         nuevo_turno = limpiar_turno_bd(val_pantalla)
+
+                        placeholders_del = ",".join(["?"] * len(posibles_emp))
+                        cursor.execute(
+                            f"""
+                            DELETE FROM rol_asistencia 
+                            WHERE fecha = ? AND (nombre IN ({placeholders_del}) OR empleado IN ({placeholders_del}))
+                        """,
+                            (f_str, *posibles_emp, *posibles_emp),
+                        )
 
                         cursor.execute(
                             """
                             INSERT INTO rol_asistencia (nombre, empleado, fecha, turno, estado) 
                             VALUES (?, ?, ?, ?, ?)
-                            ON CONFLICT(nombre, fecha) DO UPDATE SET turno=excluded.turno, estado=excluded.estado
                         """,
                             (emp, emp, f_str, nuevo_turno, nuevo_turno),
                         )
