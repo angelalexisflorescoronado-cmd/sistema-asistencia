@@ -78,25 +78,26 @@ if not st.session_state.usuario:
     password_sel = st.text_input("Contraseña:", type="password")
 
    if nomina_input and password_sel:
-            try:
-                conn = st.connection("sql", type="sql")
-                df_user = conn.query(
-                    "SELECT nombre, rol, nomina FROM usuarios WHERE nomina = :nom AND password = :pwd",
-                    params={"nom": nomina_input, "pwd": password_sel},
-                    ttl=0,
-                )
-                
-                if not df_user.empty:
-                    st.session_state.usuario = df_user.iloc[0]["nombre"]
-                    st.session_state.rol = df_user.iloc[0]["rol"]
-                    st.session_state.nomina = df_user.iloc[0]["nomina"]
-                    st.rerun()
-                else:
-                    st.error("Número de nómina o contraseña incorrectos.")
-            except Exception as e:
-                st.error(f"Error de conexión con la base de datos: {e}")
-        else:
-            st.warning("Ingresa tu número de nómina y contraseña.")# ----------------------------------------------------------------------
+        try:
+            conn = st.connection("sql", type="sql")
+            df_user = conn.query(
+                "SELECT nombre, rol, nomina FROM usuarios WHERE nomina = :nom AND password = :pwd",
+                params={"nom": nomina_input, "pwd": password_sel},
+                ttl=0,
+            )
+            
+            if not df_user.empty:
+                st.session_state.usuario = df_user.iloc[0]["nombre"]
+                st.session_state.rol = df_user.iloc[0]["rol"]
+                st.session_state.nomina = df_user.iloc[0]["nomina"]
+                st.rerun()
+            else:
+                st.error("Número de nómina o contraseña incorrectos.")
+        except Exception as e:
+            st.error(f"Error de conexión con la base de datos: {e}")
+    else:
+        st.warning("Ingresa tu número de nómina y contraseña.")
+# ----------------------------------------------------------------------
 # INTERFAZ PRINCIPAL DENTRO DE SESIÓN
 # ----------------------------------------------------------------------
 else:
