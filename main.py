@@ -2,144 +2,21 @@ import datetime as dt
 from datetime import datetime
 import pandas as pd
 import plotly.express as px
-import sqlite3
 import streamlit as st
 
-DB_NAME = "asistencia.db"
+# ----------------------------------------------------------------------
+# CONEXIÓN OFICIAL A SUPABASE (POSTGRESQL)
+# ----------------------------------------------------------------------
+conn = st.connection("sql", type="sql")
 
 
 # ----------------------------------------------------------------------
 # INICIALIZACIÓN DE BASE DE DATOS
 # ----------------------------------------------------------------------
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nomina TEXT DEFAULT '',
-            nombre TEXT UNIQUE NOT NULL,
-            rol TEXT NOT NULL DEFAULT 'OPERADOR',
-            password TEXT NOT NULL DEFAULT '1234'
-        )
-    """)
-
-    try:
-        cursor.execute("ALTER TABLE usuarios ADD COLUMN nomina TEXT DEFAULT ''")
-    except sqlite3.OperationalError:
-        pass
-
-    usuarios_base = [
-        ("10031976", "LUIS RAUL JIMENEZ", "OPERADOR", "1234"),
-        ("10015510", "RAYMUNDO PEREZ", "OPERADOR", "1234"),
-        ("10016085", "ERNESTO SALVADOR", "OPERADOR", "1234"),
-        ("10019675", "RIGOBERTO RIVERA", "OPERADOR", "1234"),
-        ("10139954", "OSCAR GARCIA HERNANDEZ", "OPERADOR", "1234"),
-        ("10007219", "LUIS ANGEL PEREZ", "OPERADOR", "1234"),
-        ("10018255", "ORLANDO SERNA", "OPERADOR", "1234"),
-        ("10005881", "SANTOS GUTIERREZ", "OPERADOR", "1234"),
-        ("10019578", "JESUS LOREDO", "OPERADOR", "1234"),
-        ("10022967", "RICARDO SANTIAGO", "OPERADOR", "1234"),
-        ("10005894", "GILBERTO ZARAGOZA", "OPERADOR", "1234"),
-        ("10092630", "JUAN CARLOS", "OPERADOR", "1234"),
-        ("10076145", "OSCAR HERNANDEZ", "OPERADOR", "1234"),
-        ("10004365", "OSCAR BENITO", "OPERADOR", "1234"),
-        ("10023526", "MARIA DOREYDA PEREZ", "OPERADOR", "1234"),
-        ("10019258", "ROBERTO ANTONIO", "OPERADOR", "1234"),
-        ("10015453", "JOSE JUAN PORTILLO", "OPERADOR", "1234"),
-        ("10035253", "ANGEL FLORES", "ADMIN_USUARIOS", "Alex1996"),
-        ("10003693", "ALEJANDRO GUARDA", "ADMIN_ROL", "1234"),
-        ("10215435", "DONATO BACCO", "ADMIN_ROL", "1234"),
-    ]
-
-    cursor.execute("SELECT COUNT(*) FROM usuarios")
-    if cursor.fetchone()[0] == 0:
-        for nom, nombre, rol, pwd in usuarios_base:
-            cursor.execute(
-                """
-                INSERT INTO usuarios (nomina, nombre, rol, password) 
-                VALUES (?, ?, ?, ?)
-            """,
-                (nom, nombre, rol, pwd),
-            )
-    else:
-        cursor.execute(
-            """
-            UPDATE usuarios 
-            SET nomina = '10035253', password = 'Alex1996', rol = 'ADMIN_USUARIOS' 
-            WHERE nombre = 'ANGEL FLORES'
-        """
-        )
-        cursor.execute("SELECT COUNT(*) FROM usuarios WHERE nombre = 'ANGEL FLORES'")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute(
-                """
-                INSERT INTO usuarios (nomina, nombre, rol, password) 
-                VALUES ('10035253', 'ANGEL FLORES', 'ADMIN_USUARIOS', 'Alex1996')
-            """
-            )
-
-    try:
-        cursor.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_nomina ON"
-            " usuarios(nomina)"
-        )
-    except (sqlite3.OperationalError, sqlite3.IntegrityError):
-        pass
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS rol_asistencia (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT,
-            empleado TEXT,
-            fecha TEXT NOT NULL,
-            turno TEXT DEFAULT '',
-            estado TEXT DEFAULT '',
-            UNIQUE(nombre, fecha)
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS solicitudes_vacaciones (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            solicitante TEXT NOT NULL,
-            fechas TEXT NOT NULL,
-            estado TEXT NOT NULL DEFAULT 'PENDIENTE',
-            fecha_solicitud TEXT NOT NULL,
-            motivo TEXT DEFAULT '',
-            autorizado_por TEXT DEFAULT '',
-            fecha_autorizacion TEXT DEFAULT '',
-            hora_autorizacion TEXT DEFAULT ''
-        )
-    """)
-
-    for col in [
-        "autorizado_por TEXT DEFAULT ''",
-        "fecha_autorizacion TEXT DEFAULT ''",
-        "hora_autorizacion TEXT DEFAULT ''",
-    ]:
-        try:
-            cursor.execute(
-                f"ALTER TABLE solicitudes_vacaciones ADD COLUMN {col}"
-            )
-        except sqlite3.OperationalError:
-            pass
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS tiempo_extra (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            empleado TEXT NOT NULL,
-            fecha TEXT NOT NULL,
-            horas REAL NOT NULL,
-            motivo TEXT DEFAULT '',
-            registrado_por TEXT NOT NULL,
-            fecha_registro TEXT NOT NULL
-        )
-    """)
-
-    conn.commit()
-    conn.close()
+    # Las tablas ya fueron creadas directamente en Supabase (SQL Editor),
+    # por lo que la conexión y estructura se manejan en la nube.
+    pass
 
 
 init_db()
@@ -202,26 +79,25 @@ if not st.session_state.usuario:
 
     if st.button("Ingresar", type="primary", use_container_width=True):
         if nomina_input and password_sel:
-            conn = sqlite3.connect(DB_NAME)
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT nombre, rol, nomina FROM usuarios WHERE nomina = ? AND"
-                " password = ?",
-                (nomina_input, password_sel),
-            )
-            row = cursor.fetchone()
-            conn.close()
-
-            if row:
-                st.session_state.usuario = row[0]
-                st.session_state.rol = row[1]
-                st.session_state.nomina = row[2]
-                st.rerun()
-            else:
-                st.error("Número de nómina o contraseña incorrectos.")
+            try:
+                with st.connection("sql", type="sql") as conn:
+                    df_user = conn.query(
+                        "SELECT nombre, rol, nomina FROM usuarios WHERE nomina = :nom AND password = :pwd",
+                        params={"nom": nomina_input, "pwd": password_sel},
+                        ttl=0,
+                    )
+                
+                if not df_user.empty:
+                    st.session_state.usuario = df_user.iloc[0]["nombre"]
+                    st.session_state.rol = df_user.iloc[0]["rol"]
+                    st.session_state.nomina = df_user.iloc[0]["nomina"]
+                    st.rerun()
+                else:
+                    st.error("Número de nómina o contraseña incorrectos.")
+            except Exception as e:
+                st.error(f"Error de conexión con la base de datos: {e}")
         else:
             st.warning("Ingresa tu número de nómina y contraseña.")
-
 # ----------------------------------------------------------------------
 # INTERFAZ PRINCIPAL DENTRO DE SESIÓN
 # ----------------------------------------------------------------------
@@ -240,13 +116,11 @@ else:
 
     st.title("📱 Core Process Espumado")
 
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT COUNT(*) FROM solicitudes_vacaciones WHERE estado = 'PENDIENTE'"
+    df_pend = conn.query(
+        "SELECT COUNT(*) as total FROM solicitudes_vacaciones WHERE estado = 'PENDIENTE'",
+        ttl=0,
     )
-    num_pendientes = cursor.fetchone()[0]
-    conn.close()
+    num_pendientes = int(df_pend.iloc[0]["total"]) if not df_pend.empty else 0
 
     st.markdown(
         """
@@ -285,10 +159,11 @@ else:
     pestanias = ["Rol de Asistencia", "Solicitar vacaciones"]
 
     if st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]:
-        if num_pendientes > 0:
-            texto_notif = f"🔴 Notificaciones ({num_pendientes})"
-        else:
-            texto_notif = "Notificaciones 🔔"
+        texto_notif = (
+            f"🔴 Notificaciones ({num_pendientes})"
+            if num_pendientes > 0
+            else "Notificaciones 🔔"
+        )
         pestanias.append(texto_notif)
 
     nombre_usuario_actual = str(st.session_state.usuario).strip().upper()
@@ -324,7 +199,7 @@ else:
 
     tab_actual = st.tabs(pestanias)
 
-    # --- PESTAÑA 1: ROL DE ASISTENCIA (DOMINGO A DOMINGO) ---
+    # --- PESTAÑA 1: ROL DE ASISTENCIA ---
     with tab_actual[0]:
         st.subheader("Tabla de Asistencia")
         st.info(
@@ -357,10 +232,12 @@ else:
             f" **{domingo_fin.strftime('%d/%m/%Y')}**"
         )
 
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, nombre FROM usuarios ORDER BY id ASC")
-        usuarios_db = cursor.fetchall()
+        df_usuarios_db = conn.query(
+            "SELECT id, nombre FROM usuarios ORDER BY id ASC", ttl=0
+        )
+        usuarios_db = [
+            (row["id"], row["nombre"]) for _, row in df_usuarios_db.iterrows()
+        ]
         todos_empleados = [r[1] for r in usuarios_db]
 
         es_admin = st.session_state.rol in ["ADMIN_ROL", "ADMIN_USUARIOS"]
@@ -381,6 +258,13 @@ else:
             "Dom",
         ]
 
+        # Cargar todos los turnos de la semana en una sola consulta para optimizar
+        df_semana = conn.query(
+            "SELECT nombre, empleado, fecha, turno FROM rol_asistencia WHERE fecha >= :inicio AND fecha <= :fin",
+            params={"inicio": dias_fechas[0], "fin": dias_fechas[-1]},
+            ttl=0,
+        )
+
         if not es_admin:
             st.markdown(f"### 👋 Hola, **{usuario_actual}**")
             st.markdown("##### Tus turnos programados para esta semana:")
@@ -393,17 +277,20 @@ else:
 
             cols_turnos = st.columns(8)
             for i, f_str in enumerate(dias_fechas):
-                placeholders = ",".join(["?"] * len(posibles_nombres))
-                cursor.execute(
-                    f"""
-                    SELECT turno FROM rol_asistencia 
-                    WHERE (nombre IN ({placeholders}) OR empleado IN ({placeholders}))
-                    AND fecha = ?
-                """,
-                    (*posibles_nombres, *posibles_nombres, f_str),
+                match = pd.DataFrame()
+                if not df_semana.empty:
+                    match = df_semana[
+                        (df_semana["fecha"] == f_str)
+                        & (
+                            df_semana["nombre"].isin(posibles_nombres)
+                            | df_semana["empleado"].isin(posibles_nombres)
+                        )
+                    ]
+                val_bd = (
+                    match.iloc[0]["turno"]
+                    if not match.empty and pd.notna(match.iloc[0]["turno"])
+                    else "-"
                 )
-                res = cursor.fetchone()
-                val_bd = res[0] if res and res[0] else "-"
 
                 with cols_turnos[i]:
                     fecha_fmt = (
@@ -451,20 +338,22 @@ else:
                 posibles_emp.append(f"{partes_emp[1]}, {partes_emp[0]}")
 
             for f_str in dias_fechas:
-                placeholders = ",".join(["?"] * len(posibles_emp))
-                cursor.execute(
-                    f"""
-                    SELECT turno FROM rol_asistencia 
-                    WHERE (nombre IN ({placeholders}) OR empleado IN ({placeholders}))
-                    AND fecha = ?
-                """,
-                    (*posibles_emp, *posibles_emp, f_str),
+                match = pd.DataFrame()
+                if not df_semana.empty:
+                    match = df_semana[
+                        (df_semana["fecha"] == f_str)
+                        & (
+                            df_semana["nombre"].isin(posibles_emp)
+                            | df_semana["empleado"].isin(posibles_emp)
+                        )
+                    ]
+                val_bd = (
+                    match.iloc[0]["turno"]
+                    if not match.empty and pd.notna(match.iloc[0]["turno"])
+                    else "-"
                 )
-                res = cursor.fetchone()
-                val_bd = res[0] if res and res[0] else "-"
                 fila.append(formatear_turno_vista(val_bd))
             tabla_datos.append(fila)
-        conn.close()
 
         df_rol = pd.DataFrame(tabla_datos, columns=encabezados)
         opciones_turnos = ["-", "🟩 DIA", "🟦 NOCHE", "🟨 V", "DESCANSO"]
@@ -493,47 +382,50 @@ else:
 
         if es_admin:
             if st.button("💾 Guardar Cambios en la Tabla", type="primary"):
-                conn = sqlite3.connect(DB_NAME)
-                cursor = conn.cursor()
+                with conn.session as s:
+                    for idx, row in df_editado.iterrows():
+                        nuevo_id = int(row["id"])
+                        emp = row["Empleado"]
 
-                for idx, row in df_editado.iterrows():
-                    nuevo_id = int(row["id"])
-                    emp = row["Empleado"]
-
-                    cursor.execute(
-                        "UPDATE usuarios SET id = ? WHERE nombre = ?",
-                        (nuevo_id, emp),
-                    )
-
-                    partes_emp = emp.replace(",", "").split()
-                    posibles_emp = [emp]
-                    if len(partes_emp) >= 2:
-                        posibles_emp.append(f"{partes_emp[-1]}, {partes_emp[0]}")
-                        posibles_emp.append(f"{partes_emp[1]}, {partes_emp[0]}")
-
-                    for i, f_str in enumerate(dias_fechas):
-                        val_pantalla = row[encabezados[i + 2]]
-                        nuevo_turno = limpiar_turno_bd(val_pantalla)
-
-                        placeholders_del = ",".join(["?"] * len(posibles_emp))
-                        cursor.execute(
-                            f"""
-                            DELETE FROM rol_asistencia 
-                            WHERE fecha = ? AND (nombre IN ({placeholders_del}) OR empleado IN ({placeholders_del}))
-                        """,
-                            (f_str, *posibles_emp, *posibles_emp),
+                        s.execute(
+                            "UPDATE usuarios SET id = :uid WHERE nombre = :nombre",
+                            {"uid": nuevo_id, "nombre": emp},
                         )
 
-                        cursor.execute(
-                            """
-                            INSERT INTO rol_asistencia (nombre, empleado, fecha, turno, estado) 
-                            VALUES (?, ?, ?, ?, ?)
-                        """,
-                            (emp, emp, f_str, nuevo_turno, nuevo_turno),
-                        )
+                        partes_emp = emp.replace(",", "").split()
+                        posibles_emp = [emp]
+                        if len(partes_emp) >= 2:
+                            posibles_emp.append(f"{partes_emp[-1]}, {partes_emp[0]}")
+                            posibles_emp.append(f"{partes_emp[1]}, {partes_emp[0]}")
 
-                conn.commit()
-                conn.close()
+                        for i, f_str in enumerate(dias_fechas):
+                            val_pantalla = row[encabezados[i + 2]]
+                            nuevo_turno = limpiar_turno_bd(val_pantalla)
+
+                            for p_name in posibles_emp:
+                                s.execute(
+                                    """
+                                    DELETE FROM rol_asistencia 
+                                    WHERE fecha = :fecha AND (nombre = :nom OR empleado = :nom)
+                                """,
+                                    {"fecha": f_str, "nom": p_name},
+                                )
+
+                            s.execute(
+                                """
+                                INSERT INTO rol_asistencia (nombre, empleado, fecha, turno, estado) 
+                                VALUES (:nombre, :empleado, :fecha, :turno, :estado)
+                            """,
+                                {
+                                    "nombre": emp,
+                                    "empleado": emp,
+                                    "fecha": f_str,
+                                    "turno": nuevo_turno,
+                                    "estado": nuevo_turno,
+                                },
+                            )
+                    s.commit()
+
                 st.success(
                     "¡Numeración, orden y turnos guardados y sincronizados con"
                     " éxito!"
@@ -569,19 +461,21 @@ else:
         alertas_empalme_usuario = []
 
         if dias_actuales:
-            conn = sqlite3.connect(DB_NAME)
-            cursor = conn.cursor()
-            cursor.execute(
+            df_otras = conn.query(
                 """
                 SELECT solicitante, fechas, fecha_solicitud FROM solicitudes_vacaciones 
-                WHERE estado IN ('APROBADO', 'PENDIENTE') AND solicitante != ?
+                WHERE estado IN ('APROBADO', 'PENDIENTE') AND solicitante != :usuario
             """,
-                (st.session_state.usuario,),
+                params={"usuario": st.session_state.usuario},
+                ttl=0,
             )
-            otras_solicitudes = cursor.fetchall()
-            conn.close()
 
-            for otro_sol, o_fechas, o_fecha_sol in otras_solicitudes:
+            for _, row in df_otras.iterrows():
+                otro_sol, o_fechas, o_fecha_sol = (
+                    row["solicitante"],
+                    row["fechas"],
+                    row["fecha_solicitud"],
+                )
                 if o_fecha_sol <= hoy_str:
                     dias_otro = [
                         d.strip() for d in o_fechas.split(",") if d.strip()
@@ -610,17 +504,19 @@ else:
             "Enviar Solicitud", type="primary", use_container_width=True
         ):
             if fechas_str:
-                conn = sqlite3.connect(DB_NAME)
-                cursor = conn.cursor()
-                cursor.execute(
-                    """
-                    INSERT INTO solicitudes_vacaciones (solicitante, fechas, estado, fecha_solicitud) 
-                    VALUES (?, ?, 'PENDIENTE', ?)
-                """,
-                    (st.session_state.usuario, fechas_str, hoy_str),
-                )
-                conn.commit()
-                conn.close()
+                with conn.session as s:
+                    s.execute(
+                        """
+                        INSERT INTO solicitudes_vacaciones (solicitante, fechas, estado, fecha_solicitud) 
+                        VALUES (:solicitante, :fechas, 'PENDIENTE', :fecha_solicitud)
+                    """,
+                        {
+                            "solicitante": st.session_state.usuario,
+                            "fechas": fechas_str,
+                            "fecha_solicitud": hoy_str,
+                        },
+                    )
+                    s.commit()
 
                 st.session_state.msg_exito = (
                     f"✅ ¡Solicitud enviada correctamente para las fechas:"
@@ -642,46 +538,47 @@ else:
         with tab_actual[idx_notif]:
             st.subheader("Dictamen de Solicitudes Pendientes")
 
-            conn = sqlite3.connect(DB_NAME)
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id, solicitante, fechas, fecha_solicitud FROM"
-                " solicitudes_vacaciones WHERE estado = 'PENDIENTE'"
+            df_pendientes = conn.query(
+                "SELECT id, solicitante, fechas, fecha_solicitud FROM solicitudes_vacaciones WHERE estado = 'PENDIENTE'",
+                ttl=0,
             )
-            pendientes = cursor.fetchall()
-            conn.close()
 
-            if not pendientes:
+            if df_pendientes.empty:
                 st.success("No hay solicitudes pendientes por revisar.")
             else:
-                for sol_id, sol, fechas, f_sol in pendientes:
+                for _, prow in df_pendientes.iterrows():
+                    sol_id, sol, fechas, f_sol = (
+                        prow["id"],
+                        prow["solicitante"],
+                        prow["fechas"],
+                        prow["fecha_solicitud"],
+                    )
                     with st.expander(
                         f"📌 Solicitud de {sol} (Enviada: {f_sol})",
                         expanded=True,
                     ):
                         st.write(f"**Fechas solicitadas:** `{fechas}`")
 
-                        conn = sqlite3.connect(DB_NAME)
-                        cursor = conn.cursor()
                         dias_lista = [
                             d.strip() for d in fechas.split(",") if d.strip()
                         ]
                         alertas_empalme = []
 
-                        cursor.execute(
+                        df_otras_sols = conn.query(
                             """
                             SELECT solicitante, fechas, fecha_solicitud FROM solicitudes_vacaciones 
-                            WHERE estado IN ('APROBADO', 'PENDIENTE') AND solicitante != ? AND id != ?
+                            WHERE estado IN ('APROBADO', 'PENDIENTE') AND solicitante != :sol AND id != :sol_id
                         """,
-                            (sol, sol_id),
+                            params={"sol": sol, "sol_id": sol_id},
+                            ttl=0,
                         )
-                        otras_solicitudes = cursor.fetchall()
 
-                        for (
-                            otro_sol,
-                            o_fechas,
-                            o_fecha_sol,
-                        ) in otras_solicitudes:
+                        for _, orow in df_otras_sols.iterrows():
+                            otro_sol, o_fechas, o_fecha_sol = (
+                                orow["solicitante"],
+                                orow["fechas"],
+                                orow["fecha_solicitud"],
+                            )
                             if o_fecha_sol <= f_sol:
                                 dias_otro = [
                                     d.strip()
@@ -703,8 +600,6 @@ else:
                                         " VER LA NECESIDAD."
                                     )
                                     alertas_empalme.append(alerta_texto)
-
-                        conn.close()
 
                         for alerta in alertas_empalme:
                             st.markdown(
@@ -742,9 +637,6 @@ else:
                             f_act = datetime.now().strftime("%Y-%m-%d")
                             h_act = datetime.now().strftime("%H:%M:%S")
 
-                            conn = sqlite3.connect(DB_NAME)
-                            cursor = conn.cursor()
-
                             dias_aprobados = [
                                 d
                                 for d, dec in decisiones_dias.items()
@@ -756,52 +648,56 @@ else:
                                 if dec == "Rechazar"
                             ]
 
-                            for dia in dias_aprobados:
-                                cursor.execute(
-                                    """
+                            with conn.session as s:
+                                for dia in dias_aprobados:
+                                    s.execute(
+                                        """
                                         INSERT INTO rol_asistencia (nombre, empleado, fecha, turno, estado) 
-                                        VALUES (?, ?, ?, 'V', 'V')
-                                        ON CONFLICT(nombre, fecha) DO UPDATE SET turno='V', estado='V'
+                                        VALUES (:nombre, :empleado, :fecha, 'V', 'V')
+                                        ON CONFLICT (nombre, fecha) DO UPDATE SET turno='V', estado='V'
                                     """,
-                                    (sol, sol, dia),
-                                )
+                                        {
+                                            "nombre": sol,
+                                            "empleado": sol,
+                                            "fecha": dia,
+                                        },
+                                    )
 
-                            for dia in dias_rechazados:
-                                cursor.execute(
-                                    """
+                                for dia in dias_rechazados:
+                                    s.execute(
+                                        """
                                         UPDATE rol_asistencia 
                                         SET turno = '-', estado = '-' 
-                                        WHERE (nombre = ? OR empleado = ?) AND fecha = ? AND turno = 'V'
+                                        WHERE (nombre = :sol OR empleado = :sol) AND fecha = :fecha AND turno = 'V'
                                     """,
-                                    (sol, sol, dia),
+                                        {"sol": sol, "fecha": dia},
+                                    )
+
+                                estado_general = (
+                                    "APROBADO"
+                                    if len(dias_aprobados) > 0
+                                    else "RECHAZADO"
                                 )
 
-                            estado_general = (
-                                "APROBADO"
-                                if len(dias_aprobados) > 0
-                                else "RECHAZADO"
-                            )
+                                s.execute(
+                                    """
+                                    UPDATE solicitudes_vacaciones 
+                                    SET estado = :estado, 
+                                        autorizado_por = :autorizado_por, 
+                                        fecha_autorizacion = :fecha_autorizacion, 
+                                        hora_autorizacion = :hora_autorizacion 
+                                    WHERE id = :id
+                                """,
+                                    {
+                                        "estado": estado_general,
+                                        "autorizado_por": st.session_state.usuario,
+                                        "fecha_autorizacion": f_act,
+                                        "hora_autorizacion": h_act,
+                                        "id": sol_id,
+                                    },
+                                )
+                                s.commit()
 
-                            cursor.execute(
-                                """
-                                UPDATE solicitudes_vacaciones 
-                                SET estado = ?, 
-                                    autorizado_por = ?, 
-                                    fecha_autorizacion = ?, 
-                                    hora_autorizacion = ? 
-                                WHERE id = ?
-                            """,
-                                (
-                                    estado_general,
-                                    st.session_state.usuario,
-                                    f_act,
-                                    h_act,
-                                    sol_id,
-                                ),
-                            )
-
-                            conn.commit()
-                            conn.close()
                             st.success(
                                 "¡Dictamen aplicado correctamente para la"
                                 f" solicitud #{sol_id}!"
@@ -838,15 +734,15 @@ else:
                     ["TODOS", "PENDIENTE", "APROBADO", "RECHAZADO"],
                 )
 
-            conn = sqlite3.connect(DB_NAME)
-            query = """
+            df_hist_raw = conn.query(
+                """
                 SELECT id, solicitante, fechas, estado, fecha_solicitud, 
                        autorizado_por, fecha_autorizacion, hora_autorizacion 
                 FROM solicitudes_vacaciones 
                 ORDER BY id DESC
-            """
-            df_hist_raw = pd.read_sql(query, conn)
-            conn.close()
+            """,
+                ttl=0,
+            )
 
             df_hist = df_hist_raw.copy()
             if not df_hist.empty:
@@ -889,29 +785,27 @@ else:
                         f_act = datetime.now().strftime("%Y-%m-%d")
                         h_act = datetime.now().strftime("%H:%M:%S")
 
-                        conn = sqlite3.connect(DB_NAME)
-                        cursor = conn.cursor()
+                        with conn.session as s:
+                            for index, row in df_editado.iterrows():
+                                s.execute(
+                                    """
+                                    UPDATE solicitudes_vacaciones
+                                    SET estado = :estado,
+                                        autorizado_por = :autorizado_por,
+                                        fecha_autorizacion = :fecha_autorizacion,
+                                        hora_autorizacion = :hora_autorizacion
+                                    WHERE id = :id
+                                """,
+                                    {
+                                        "estado": row["estado"],
+                                        "autorizado_por": st.session_state.usuario,
+                                        "fecha_autorizacion": f_act,
+                                        "hora_autorizacion": h_act,
+                                        "id": row["id"],
+                                    },
+                                )
+                            s.commit()
 
-                        for index, row in df_editado.iterrows():
-                            cursor.execute(
-                                """
-                                UPDATE solicitudes_vacaciones
-                                SET estado = ?,
-                                    autorizado_por = ?,
-                                    fecha_autorizacion = ?,
-                                    hora_autorizacion = ?
-                                WHERE id = ?
-                            """,
-                                (
-                                    row["estado"],
-                                    st.session_state.usuario,
-                                    f_act,
-                                    h_act,
-                                    row["id"],
-                                ),
-                            )
-                        conn.commit()
-                        conn.close()
                         st.success(
                             "¡Historial y auditoría actualizados correctamente!"
                         )
@@ -950,25 +844,13 @@ else:
                                 .split(" |")[0]
                                 .strip()
                             )
-                            conn = sqlite3.connect(DB_NAME)
-                            cursor = conn.cursor()
-                            cursor.execute(
-                                "DELETE FROM solicitudes_vacaciones WHERE id = ?",
-                                (id_target,),
-                            )
-
-                            cursor.execute(
-                                "SELECT COUNT(*) FROM solicitudes_vacaciones"
-                            )
-                            total_restantes = cursor.fetchone()[0]
-                            if total_restantes == 0:
-                                cursor.execute(
-                                    "DELETE FROM sqlite_sequence WHERE"
-                                    " name='solicitudes_vacaciones'"
+                            with conn.session as s:
+                                s.execute(
+                                    "DELETE FROM solicitudes_vacaciones WHERE id = :id",
+                                    {"id": id_target},
                                 )
+                                s.commit()
 
-                            conn.commit()
-                            conn.close()
                             st.success(
                                 f"¡Registro ID {id_target} eliminado"
                                 " exitosamente!"
@@ -991,17 +873,12 @@ else:
                         use_container_width=True,
                     ):
                         if confirmar_borrado_total:
-                            conn = sqlite3.connect(DB_NAME)
-                            cursor = conn.cursor()
+                            with conn.session as s:
+                                s.execute(
+                                    "TRUNCATE TABLE solicitudes_vacaciones RESTART IDENTITY CASCADE;"
+                                )
+                                s.commit()
 
-                            cursor.execute("DELETE FROM solicitudes_vacaciones")
-                            cursor.execute(
-                                "DELETE FROM sqlite_sequence WHERE"
-                                " name='solicitudes_vacaciones'"
-                            )
-
-                            conn.commit()
-                            conn.close()
                             st.success(
                                 "¡Todo el historial fue eliminado y el"
                                 " contador de ID ha sido reiniciado al 1!"
@@ -1050,12 +927,10 @@ else:
             st.markdown("---")
             st.subheader("📊 Resumen de Días de Tiempo Extra")
 
-            conn = sqlite3.connect(DB_NAME)
-            df_rol_all = pd.read_sql(
+            df_rol_all = conn.query(
                 "SELECT nombre AS Empleado, fecha, turno FROM rol_asistencia",
-                conn,
+                ttl=0,
             )
-            conn.close()
 
             if not df_rol_all.empty:
                 df_rol_all["es_laborado"] = df_rol_all["turno"].apply(
@@ -1163,12 +1038,10 @@ else:
                 " usuarios a tu preferencia."
             )
 
-            conn = sqlite3.connect(DB_NAME)
-            df_users = pd.read_sql(
+            df_users = conn.query(
                 "SELECT id, nomina, nombre, rol, password FROM usuarios ORDER BY id ASC",
-                conn,
+                ttl=0,
             )
-            conn.close()
 
             df_users_edit = st.data_editor(
                 df_users,
@@ -1197,59 +1070,45 @@ else:
                         except Exception:
                             pass
 
-                    conn = sqlite3.connect(DB_NAME)
-                    cursor = conn.cursor()
+                    with conn.session as s:
+                        s.execute("DELETE FROM usuarios")
+                        for index, row in df_users_edit.iterrows():
+                            uid = row.get("id", None)
+                            nom = str(row.get("nomina", "")).strip()
+                            nombre = str(row.get("nombre", "")).strip()
+                            rol = str(row.get("rol", "OPERADOR")).strip()
+                            password = str(row.get("password", "1234")).strip()
 
-                    cursor.execute("DELETE FROM usuarios")
-                    try:
-                        cursor.execute(
-                            "DELETE FROM sqlite_sequence WHERE name='usuarios'"
-                        )
-                    except sqlite3.OperationalError:
-                        pass
-
-                    for index, row in df_users_edit.iterrows():
-                        uid = row.get("id", None)
-                        nom = str(row.get("nomina", "")).strip()
-                        nombre = str(row.get("nombre", "")).strip()
-                        rol = str(row.get("rol", "OPERADOR")).strip()
-                        password = str(row.get("password", "1234")).strip()
-
-                        if nombre:
-                            if pd.notna(uid) and str(uid).strip() != "":
-                                try:
-                                    cursor.execute(
+                            if nombre:
+                                if pd.notna(uid) and str(uid).strip() != "":
+                                    s.execute(
                                         """
                                         INSERT INTO usuarios (id, nomina, nombre, rol, password)
-                                        VALUES (?, ?, ?, ?, ?)
+                                        VALUES (:id, :nomina, :nombre, :rol, :password)
                                     """,
-                                        (
-                                            int(uid),
-                                            nom,
-                                            nombre,
-                                            rol,
-                                            password,
-                                        ),
+                                        {
+                                            "id": int(uid),
+                                            "nomina": nom,
+                                            "nombre": nombre,
+                                            "rol": rol,
+                                            "password": password,
+                                        },
                                     )
-                                except sqlite3.IntegrityError:
-                                    cursor.execute(
+                                else:
+                                    s.execute(
                                         """
                                         INSERT INTO usuarios (nomina, nombre, rol, password)
-                                        VALUES (?, ?, ?, ?)
+                                        VALUES (:nomina, :nombre, :rol, :password)
                                     """,
-                                        (nom, nombre, rol, password),
+                                        {
+                                            "nomina": nom,
+                                            "nombre": nombre,
+                                            "rol": rol,
+                                            "password": password,
+                                        },
                                     )
-                            else:
-                                cursor.execute(
-                                    """
-                                    INSERT INTO usuarios (nomina, nombre, rol, password)
-                                    VALUES (?, ?, ?, ?)
-                                """,
-                                    (nom, nombre, rol, password),
-                                )
+                        s.commit()
 
-                    conn.commit()
-                    conn.close()
                     st.success(
                         "¡Base de datos de usuarios y numeración actualizados"
                         " con éxito!"
@@ -1282,14 +1141,13 @@ else:
                         nomina_target = usuario_a_eliminar.split(" - ")[
                             0
                         ].strip()
-                        conn = sqlite3.connect(DB_NAME)
-                        cursor = conn.cursor()
-                        cursor.execute(
-                            "DELETE FROM usuarios WHERE nomina = ?",
-                            (nomina_target,),
-                        )
-                        conn.commit()
-                        conn.close()
+                        with conn.session as s:
+                            s.execute(
+                                "DELETE FROM usuarios WHERE nomina = :nomina",
+                                {"nomina": nomina_target},
+                            )
+                            s.commit()
+
                         st.success(
                             f"¡Usuario con nómina {nomina_target} eliminado"
                             " con éxito!"
