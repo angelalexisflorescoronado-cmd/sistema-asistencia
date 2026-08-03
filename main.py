@@ -77,15 +77,13 @@ if not st.session_state.usuario:
     nomina_input = st.text_input("Número de Nómina:").strip()
     password_sel = st.text_input("Contraseña:", type="password")
 
-    if st.button("Ingresar", type="primary", use_container_width=True):
-        if nomina_input and password_sel:
-            try:
-                with st.connection("sql", type="sql") as conn:
-                    df_user = conn.query(
-                        "SELECT nombre, rol, nomina FROM usuarios WHERE nomina = :nom AND password = :pwd",
-                        params={"nom": nomina_input, "pwd": password_sel},
-                        ttl=0,
-                    )
+   try:
+                conn = st.connection("sql", type="sql")
+                df_user = conn.query(
+                    "SELECT nombre, rol, nomina FROM usuarios WHERE nomina = :nom AND password = :pwd",
+                    params={"nom": nomina_input, "pwd": password_sel},
+                    ttl=0,
+                )
                 
                 if not df_user.empty:
                     st.session_state.usuario = df_user.iloc[0]["nombre"]
