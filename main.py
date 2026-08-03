@@ -77,7 +77,7 @@ if not st.session_state.usuario:
     nomina_input = st.text_input("Número de Nómina:").strip()
     password_sel = st.text_input("Contraseña:", type="password")
 
-   if nomina_input and password_sel:
+    if nomina_input and password_sel:
         try:
             conn = st.connection("sql", type="sql")
             df_user = conn.query(
