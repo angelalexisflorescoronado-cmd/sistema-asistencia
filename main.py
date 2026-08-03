@@ -77,7 +77,8 @@ if not st.session_state.usuario:
     nomina_input = st.text_input("Número de Nómina:").strip()
     password_sel = st.text_input("Contraseña:", type="password")
 
-   try:
+   if nomina_input and password_sel:
+            try:
                 conn = st.connection("sql", type="sql")
                 df_user = conn.query(
                     "SELECT nombre, rol, nomina FROM usuarios WHERE nomina = :nom AND password = :pwd",
@@ -95,8 +96,7 @@ if not st.session_state.usuario:
             except Exception as e:
                 st.error(f"Error de conexión con la base de datos: {e}")
         else:
-            st.warning("Ingresa tu número de nómina y contraseña.")
-# ----------------------------------------------------------------------
+            st.warning("Ingresa tu número de nómina y contraseña.")# ----------------------------------------------------------------------
 # INTERFAZ PRINCIPAL DENTRO DE SESIÓN
 # ----------------------------------------------------------------------
 else:
