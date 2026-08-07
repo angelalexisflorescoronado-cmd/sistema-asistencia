@@ -4,4 +4,4 @@ psycopg2-binary
 sqlalchemy
 plotly
 supabase
-streamlit-gsheets
+st-gsheets-connection
