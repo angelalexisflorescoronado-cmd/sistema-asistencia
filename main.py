@@ -9,7 +9,12 @@ import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 
-# Conexión con manejo seguro de saltos de línea en la llave privada
+# Configuración de página y sesión (debe ir antes de cualquier comando de Streamlit)
+st.set_page_config(
+    page_title="Control de Asistencia", page_icon="📅", layout="wide"
+)
+
+# Conexión segura con Google Sheets
 try:
     private_key_raw = st.secrets["connections"]["gsheets"]["private_key"]
     private_key_formatted = private_key_raw.replace("\\n", "\n")
@@ -33,12 +38,13 @@ try:
     ]
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
+    
+    # Apertura de la hoja dentro del try para evitar NameError si falla
+    sheet = client.open_by_key("1Q8Pw68xm6PjeZMrvuNRkeLZzAkcq3At4o7h7lBz3y9o").sheet1
     st.success("¡Conexión exitosa con Google Sheets!")
 except Exception as e:
     st.error(f"Ocurrió un error al conectar: {e}")
-
-# Apertura de la hoja
-sheet = client.open_by_key("1Q8Pw68xm6PjeZMrvuNRkeLZzAkcq3At4o7h7lBz3y9o").sheet1
+    st.stop()  # Detiene la ejecución de la app para evitar errores en cascada
   
 DB_NAME = "asistencia.db"
 
@@ -208,12 +214,8 @@ def limpiar_turno_bd(val):
 
 
 # ----------------------------------------------------------------------
-# CONFIGURACIÓN DE PÁGINA Y SESIÓN
+# GESTIÓN DE SESIÓN
 # ----------------------------------------------------------------------
-st.set_page_config(
-    page_title="Control de Asistencia", page_icon="📅", layout="wide"
-)
-
 if "usuario" not in st.session_state:
   st.session_state.usuario = None
 if "nomina" not in st.session_state:
@@ -359,7 +361,7 @@ else:
 
   tab_actual = st.tabs(pestanias)
 
-  # --- PESTAÑA 1: ROL DE ASISTENCIA (DOMINGO A DOMINGO) ---
+  # --- PESTAÑA 1: ROL DE ASISTENCIA ---
   with tab_actual[0]:
     st.subheader("Tabla de Asistencia")
     st.info(
@@ -1227,7 +1229,7 @@ else:
           else:
             st.warning("Selecciona un usuario válido para eliminar.")
 
-  # --- PESTAÑA 7: GUARDAR CÓDIGO BASE (EXCLUSIVO ANGEL) ---
+  # --- PESTAÑA 7: GUARDAR CÓDIGO BASE ---
   if es_angel and "💾 Guardar Código Base" in pestanias:
     idx_codigo = pestanias.index("💾 Guardar Código Base")
     with tab_actual[idx_codigo]:
