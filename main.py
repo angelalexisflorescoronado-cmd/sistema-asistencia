@@ -7,6 +7,14 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+# Prueba de conexión a Google Sheets
+try:
+    df = st.connection("gsheets", type="gsheets").read()
+    st.success("¡Conexión exitosa con Google Sheets!")
+    st.dataframe(df)
+except Exception as e:
+    st.error(f"Ocurrió un error al conectar: {e}")
+  
 DB_NAME = "asistencia.db"
 
 
