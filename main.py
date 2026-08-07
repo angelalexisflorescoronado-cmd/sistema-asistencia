@@ -14,34 +14,30 @@ import gspread
 from google.oauth2.service_account import Credentials
 import streamlit as st
 
-# Sanitizar la llave privada para eliminar caracteres de Windows (\r) y formatearla bien
-raw_key = st.secrets["connections"]["gsheets"]["private_key"]
-clean_key = raw_key.replace("\\n", "\n").replace("\r", "")
+# Conexión directa y limpia utilizando los secretos configurados en Streamlit Cloud
+try:
+    creds_dict = {
+        "type": "service_account",
+        "project_id": st.secrets["connections"]["gsheets"]["project_id"],
+        "private_key_id": st.secrets["connections"]["gsheets"]["private_key_id"],
+        "private_key": st.secrets["connections"]["gsheets"]["private_key"],
+        "client_email": st.secrets["connections"]["gsheets"]["client_email"],
+        "client_id": st.secrets["connections"]["gsheets"]["client_id"],
+        "auth_uri": st.secrets["connections"]["gsheets"]["auth_uri"],
+        "token_uri": st.secrets["connections"]["gsheets"]["token_uri"],
+        "auth_provider_x509_cert_url": st.secrets["connections"]["gsheets"]["auth_provider_x509_cert_url"],
+        "client_x509_cert_url": st.secrets["connections"]["gsheets"]["client_x509_cert_url"]
+    }
 
-creds_dict = {
-    "type": "service_account",
-    "project_id": st.secrets["connections"]["gsheets"]["project_id"],
-    "private_key_id": st.secrets["connections"]["gsheets"]["private_key_id"],
-    "private_key": clean_key,
-    "client_email": st.secrets["connections"]["gsheets"]["client_email"],
-    "client_id": st.secrets["connections"]["gsheets"]["client_id"],
-    "auth_uri": st.secrets["connections"]["gsheets"]["auth_uri"],
-    "token_uri": st.secrets["connections"]["gsheets"]["token_uri"],
-    "auth_provider_x509_cert_url": st.secrets["connections"]["gsheets"][
-        "auth_provider_x509_cert_url"
-    ],
-    "client_x509_cert_url": st.secrets["connections"]["gsheets"][
-        "client_x509_cert_url"
-    ],
-}
-
-scope = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
-]
-creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-client = gspread.authorize(creds)
-st.success("¡Conexión exitosa con Google Sheets!")
+    scope = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    client = gspread.authorize(creds)
+    st.success("¡Conexión exitosa con Google Sheets!")
+except Exception as e:
+    st.error(f"Ocurrió un error al conectar: {e}")
 
 # Con esto ya puedes abrir tu hoja sin errores de llave
 sheet = client.open_by_key("1Q8Pw68xm6PjeZMrvuNRkeLZzAkcq3At4o7h7lBz3y9o").sheet1
@@ -1233,7 +1229,7 @@ else:
           else:
             st.warning("Selecciona un usuario válido para eliminar.")
 
-# --- PESTAÑA 7: GUARDAR CÓDIGO BASE (EXCLUSIVO ANGEL) ---
+  # --- PESTAÑA 7: GUARDAR CÓDIGO BASE (EXCLUSIVO ANGEL) ---
   if es_angel and "💾 Guardar Código Base" in pestanias:
     idx_codigo = pestanias.index("💾 Guardar Código Base")
     with tab_actual[idx_codigo]:
@@ -1263,7 +1259,6 @@ else:
                 f'      ("{nom}", "{nombre}", "{rol}", "{pwd}"),'
             )
 
-          # Cadena corregida con comillas triples para evitar saltos de línea inválidos
           contenido_usuarios = "\n".join(nuevas_lineas_base)
           bloque_nuevo_str = f"""  usuarios_base = [
 {contenido_usuarios}
