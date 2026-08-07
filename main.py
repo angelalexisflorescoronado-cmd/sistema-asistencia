@@ -43,6 +43,12 @@ try:
   creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
   client = gspread.authorize(creds)
 
+  # Apertura de la hoja dentro del try
+  sheet = client.open_by_key(
+      "1Q8Pw68xm6PjeZmRvUNrKeLZZAkcq3At4o7h7lBz3y9o"
+  ).sheet1
+  st.success("¡Conexión exitosa con Google Sheets!")
+
 except Exception as e:
   st.error(f"Ocurrió un error al conectar: {e}")
   st.stop()  # Detiene la ejecución para evitar errores en cascada
