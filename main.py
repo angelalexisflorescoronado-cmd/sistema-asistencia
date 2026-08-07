@@ -6,21 +6,19 @@ import sqlite3
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-
-import streamlit as st
-from streamlit_gsheets import GSheetsConnection
-
 import gspread
 from google.oauth2.service_account import Credentials
-import streamlit as st
 
-# Conexión directa y limpia utilizando los secretos configurados en Streamlit Cloud
+# Conexión con manejo seguro de saltos de línea en la llave privada
 try:
+    private_key_raw = st.secrets["connections"]["gsheets"]["private_key"]
+    private_key_formatted = private_key_raw.replace("\\n", "\n")
+
     creds_dict = {
         "type": "service_account",
         "project_id": st.secrets["connections"]["gsheets"]["project_id"],
         "private_key_id": st.secrets["connections"]["gsheets"]["private_key_id"],
-        "private_key": st.secrets["connections"]["gsheets"]["private_key"],
+        "private_key": private_key_formatted,
         "client_email": st.secrets["connections"]["gsheets"]["client_email"],
         "client_id": st.secrets["connections"]["gsheets"]["client_id"],
         "auth_uri": st.secrets["connections"]["gsheets"]["auth_uri"],
@@ -39,7 +37,7 @@ try:
 except Exception as e:
     st.error(f"Ocurrió un error al conectar: {e}")
 
-# Con esto ya puedes abrir tu hoja sin errores de llave
+# Apertura de la hoja
 sheet = client.open_by_key("1Q8Pw68xm6PjeZMrvuNRkeLZzAkcq3At4o7h7lBz3y9o").sheet1
   
 DB_NAME = "asistencia.db"
