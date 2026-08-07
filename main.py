@@ -1194,7 +1194,7 @@ else:
           else:
             st.warning("Selecciona un usuario válido para eliminar.")
 
-  # --- PESTAÑA 7: GUARDAR CÓDIGO BASE (EXCLUSIVO ANGEL) ---
+# --- PESTAÑA 7: GUARDAR CÓDIGO BASE (EXCLUSIVO ANGEL) ---
   if es_angel and "💾 Guardar Código Base" in pestanias:
     idx_codigo = pestanias.index("💾 Guardar Código Base")
     with tab_actual[idx_codigo]:
@@ -1224,9 +1224,11 @@ else:
                 f'      ("{nom}", "{nombre}", "{rol}", "{pwd}"),'
             )
 
-          bloque_nuevo_str = "  usuarios_base = [\n" + "\n".join(
-              nuevas_lineas_base
-          ) + "\n  ]"
+          # Cadena corregida con comillas triples para evitar saltos de línea inválidos
+          contenido_usuarios = "\n".join(nuevas_lineas_base)
+          bloque_nuevo_str = f"""  usuarios_base = [
+{contenido_usuarios}
+  ]"""
 
           archivo_actual = __file__
           with open(archivo_actual, "r", encoding="utf-8") as f:
