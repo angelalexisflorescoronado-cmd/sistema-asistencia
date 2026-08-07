@@ -10,13 +10,41 @@ import streamlit as st
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
-# Prueba de conexión a Google Sheets
-try:
-    df = st.connection("gsheets", type=GSheetsConnection).read()
-    st.success("¡Conexión exitosa con Google Sheets!")
-    st.dataframe(df)
-except Exception as e:
-    st.error(f"Ocurrió un error al conectar: {e}")
+import gspread
+from google.oauth2.service_account import Credentials
+import streamlit as st
+
+# Sanitizar la llave privada para eliminar caracteres de Windows (\r) y formatearla bien
+raw_key = st.secrets["connections"]["gsheets"]["private_key"]
+clean_key = raw_key.replace("\\n", "\n").replace("\r", "")
+
+creds_dict = {
+    "type": "service_account",
+    "project_id": st.secrets["connections"]["gsheets"]["project_id"],
+    "private_key_id": st.secrets["connections"]["gsheets"]["private_key_id"],
+    "private_key": clean_key,
+    "client_email": st.secrets["connections"]["gsheets"]["client_email"],
+    "client_id": st.secrets["connections"]["gsheets"]["client_id"],
+    "auth_uri": st.secrets["connections"]["gsheets"]["auth_uri"],
+    "token_uri": st.secrets["connections"]["gsheets"]["token_uri"],
+    "auth_provider_x509_cert_url": st.secrets["connections"]["gsheets"][
+        "auth_provider_x509_cert_url"
+    ],
+    "client_x509_cert_url": st.secrets["connections"]["gsheets"][
+        "client_x509_cert_url"
+    ],
+}
+
+scope = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
+creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+client = gspread.authorize(creds)
+st.success("¡Conexión exitosa con Google Sheets!")
+
+# Con esto ya puedes abrir tu hoja sin errores de llave
+sheet = client.open_by_key("1Q8Pw68xm6PjeZMrvuNRkeLZzAkcq3At4o7h7lBz3y9o").sheet1
   
 DB_NAME = "asistencia.db"
 
