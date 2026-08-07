@@ -1198,7 +1198,7 @@ else:
   if es_angel and "💾 Guardar Código Base" in pestanias:
     idx_codigo = pestanias.index("💾 Guardar Código Base")
     with tab_actual[idx_codigo]:
-      st.subheader("💾 Actualización Automática del Código Fuente (`app.py`)")
+      st.subheader("💾 Actualización Automática del Código Fuente")
       st.info(
           "Esta herramienta lee todos los usuarios y registros actuales de la"
           " base de datos y actualiza el archivo de código fuente para que"
@@ -1221,12 +1221,12 @@ else:
           nuevas_lineas_base = []
           for nom, nombre, rol, pwd in users_db_data:
             nuevas_lineas_base.append(
-                f'        ("{nom}", "{nombre}", "{rol}", "{pwd}"),'
+                f'      ("{nom}", "{nombre}", "{rol}", "{pwd}"),'
             )
 
-          bloque_nuevo_str = "    usuarios_base = [\n" + "\n".join(
+          bloque_nuevo_str = "  usuarios_base = [\n" + "\n".join(
               nuevas_lineas_base
-          ) + "\n    ]"
+          ) + "\n  ]"
 
           archivo_actual = __file__
           with open(archivo_actual, "r", encoding="utf-8") as f:
@@ -1241,7 +1241,7 @@ else:
             with open(archivo_actual, "w", encoding="utf-8") as f:
               f.write(nuevo_contenido)
             st.success(
-                "¡Código `app.py` actualizado y guardado exitosamente con los"
+                "¡Código actualizado y guardado exitosamente con los"
                 " datos actuales de la base de datos!"
             )
           else:
