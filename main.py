@@ -16,18 +16,36 @@ st.set_page_config(
 
 # Conexión segura con Google Sheets
 try:
-  # 1. Convertir la sección de secretos directamente a diccionario
-  creds_dict = dict(st.secrets["connections"]["gsheets"])
+  private_key_raw = st.secrets["connections"]["gsheets"]["private_key"]
+  private_key_formatted = private_key_raw.replace("\\n", "\n")
 
-  # 2. Reemplazar los saltos de línea en la llave privada
-  creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+  creds_dict = {
+      "type": "service_account",
+      "project_id": st.secrets["connections"]["gsheets"]["project_id"],
+      "private_key_id": st.secrets["connections"]["gsheets"]["private_key_id"],
+      "private_key": private_key_formatted,
+      "client_email": st.secrets["connections"]["gsheets"]["client_email"],
+      "client_id": st.secrets["connections"]["gsheets"]["client_id"],
+      "auth_uri": st.secrets["connections"]["gsheets"]["auth_uri"],
+      "token_uri": st.secrets["connections"]["gsheets"]["token_uri"],
+      "auth_provider_x509_cert_url": st.secrets["connections"]["gsheets"][
+          "auth_provider_x509_cert_url"
+      ],
+      "client_x509_cert_url": st.secrets["connections"]["gsheets"][
+          "client_x509_cert_url"
+      ],
+  }
 
-    scope = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive",
-    ]
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-    client = gspread.authorize(creds)
+  scope = [
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/drive",
+  ]
+  creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+  client = gspread.authorize(creds)
+
+except Exception as e:
+  st.error(f"Ocurrió un error al conectar: {e}")
+  st.stop()  # Detiene la ejecución para evitar errores en cascada
     
     # Apertura de la hoja dentro del try para evitar NameError si falla
     sheet = client.open_by_key("1Q8Pw68xm6PjeZMrvuNRkeLZzAkcq3At4o7h7lBz3y9o").sheet1
